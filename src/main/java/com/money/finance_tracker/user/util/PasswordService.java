@@ -1,4 +1,4 @@
-package com.money.finance_tracker.user.service;
+package com.money.finance_tracker.user.util;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -17,4 +17,5 @@ public class PasswordService {
     public boolean verifyPassword(String plainPassword, String hashedPassword) {
         return passwordEncoder.matches(plainPassword, hashedPassword);
     }
+
 }

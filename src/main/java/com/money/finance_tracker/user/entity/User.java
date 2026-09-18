@@ -3,8 +3,14 @@ package com.money.finance_tracker.user.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.time.LocalDateTime;
-import lombok.*;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "users")
@@ -37,6 +43,10 @@ public class User {
     @Column(nullable = false, name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<FundingSource> fundingSources = new ArrayList<>();
+
 
     @PrePersist
     protected void onCreate() {
@@ -44,9 +54,23 @@ public class User {
         updatedAt = LocalDateTime.now();
     }
 
+
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
+
+    public void addFundingSource(FundingSource fs) {
+        if (fs == null) return;
+        fs.setUser(this);
+        this.fundingSources.add(fs);
+    }
+
+    public void removeFundingSource(FundingSource fs) {
+        if (fs == null) return;
+        this.fundingSources.remove(fs);
+        fs.setUser(null);
+    }
+
 }
 

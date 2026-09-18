@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:17
+    container_name: finance_tracker_db
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Mount project Flyway migrations so the DB can be initialized on first run
+      - ./src/main/resources/db/migration:/docker-entrypoint-initdb.d:ro
+
+volumes:
+  pgdata:
+    name: finance_tracker_pgdata
+
