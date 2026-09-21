@@ -1,4 +1,4 @@
-package com.money.finance_tracker.user.dto;
+package com.money.finance_tracker.auth.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserSignUpDto {
+public class RegisterUserDto {
 
     @NotBlank(message = "Name is required")
     private String name;

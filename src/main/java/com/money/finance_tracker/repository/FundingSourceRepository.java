@@ -1,6 +1,6 @@
-package com.money.finance_tracker.user.repository;
+package com.money.finance_tracker.repository;
 
-import com.money.finance_tracker.user.entity.FundingSource;
+import com.money.finance_tracker.entity.FundingSource;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

@@ -1,4 +1,4 @@
-package com.money.finance_tracker.user.dto;
+package com.money.finance_tracker.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;

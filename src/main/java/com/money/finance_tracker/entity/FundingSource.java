@@ -1,5 +1,6 @@
-package com.money.finance_tracker.user.entity;
+package com.money.finance_tracker.entity;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
@@ -22,7 +23,8 @@ public class FundingSource {
     private String name;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "user_id", nullable = false, referencedColumnName = "id")
+    @JsonBackReference
     private User user;
 
     public void changeName(String name) {

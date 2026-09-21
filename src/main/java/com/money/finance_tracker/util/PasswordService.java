@@ -1,4 +1,4 @@
-package com.money.finance_tracker.user.util;
+package com.money.finance_tracker.util;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;

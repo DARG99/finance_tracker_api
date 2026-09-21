@@ -10,8 +10,6 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # Mount project Flyway migrations so the DB can be initialized on first run
-      - ./src/main/resources/db/migration:/docker-entrypoint-initdb.d:ro
 
 volumes:
   pgdata:
