@@ -1,8 +1,9 @@
 package com.money.finance_tracker.controller;
 
+import com.money.finance_tracker.dto.CategoryDto;
 import com.money.finance_tracker.dto.FundingSourceDto;
 import com.money.finance_tracker.entity.User;
-import com.money.finance_tracker.service.FundingSourceService;
+import com.money.finance_tracker.service.CategoryService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -14,18 +15,18 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/funding-sources")
-public class FundingSourceController {
-    @Autowired
-    private FundingSourceService fundingSourceService;
+@RequestMapping("/api/categories")
+public class CategoryController {
 
+    @Autowired
+    private CategoryService categoryService;
 
     @PostMapping
     public ResponseEntity<Void> addFundingSource(
-            @Valid @RequestBody FundingSourceDto dto,
+            @Valid @RequestBody CategoryDto dto,
             @AuthenticationPrincipal User user
     ) {
-        fundingSourceService.addFundingSource(dto, user);
+        categoryService.addCategory(dto, user);
 
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }

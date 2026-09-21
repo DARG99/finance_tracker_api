@@ -15,18 +15,11 @@ public class FundingSourceService {
     @Autowired
     private FundingSourceRepository fundingSourceRepository;
 
-    @Autowired
-    private UserRepository userRepository;
-
-    public void addFundingSource(@Valid FundingSourceDto fundingSourceDto) {
-        User targetUser = userRepository.findById(fundingSourceDto.getUserId())
-            .orElseThrow(() -> new RuntimeException("User not found with id: " + fundingSourceDto.getUserId()));
-
+    public void addFundingSource(FundingSourceDto dto, User user) {
         FundingSource fundingSource = new FundingSource();
-        fundingSource.setName(fundingSourceDto.getName());
-        fundingSource.setUser(targetUser);
+        fundingSource.setName(dto.getName());
+        fundingSource.setUser(user);
 
         fundingSourceRepository.save(fundingSource);
     }
 }
-

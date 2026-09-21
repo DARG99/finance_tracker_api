@@ -8,8 +8,9 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class FundingSourceDto {
-
+public class CategoryDto {
     @NotBlank(message = "Funding source name is required")
     private String name;
+
+    private Long userId;
 }
