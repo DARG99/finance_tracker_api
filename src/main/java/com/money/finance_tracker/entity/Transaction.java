@@ -5,6 +5,8 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -23,13 +25,14 @@ public class Transaction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotNull
+    @NotNull(message = "Transaction type is required")
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(nullable = false, columnDefinition = "transaction_type")
     private TransactionTypeEnum type;
 
-    @NotNull
-    @Positive
+    @NotNull(message = "Amount is required")
+    @Positive(message = "Amount must be greater than zero")
     @Column(nullable = false, precision = 14, scale = 2)
     private BigDecimal amount;
 
@@ -38,17 +41,17 @@ public class Transaction {
     @JsonIgnore
     private User user;
 
-    // Used by EXPENSE and TRANSFER
+    // EXPENSE and TRANSFER
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "source_funding_source_id")
     private FundingSource sourceFundingSource;
 
-    // Used by INCOME and TRANSFER
+    // INCOME and TRANSFER
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "destination_funding_source_id")
     private FundingSource destinationFundingSource;
 
-    // Used only by EXPENSE
+    // EXPENSE only
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
     private Category category;
@@ -56,18 +59,17 @@ public class Transaction {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    // Always supplied by the user
+    @NotNull(message = "Transaction date is required")
     @Column(name = "transaction_date", nullable = false)
     private LocalDate transactionDate;
 
+    // Automatically set by the backend
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @PrePersist
     protected void onCreate() {
-        if (transactionDate == null) {
-            transactionDate = LocalDate.now();
-        }
-
         createdAt = LocalDateTime.now();
     }
 }

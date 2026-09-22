@@ -1,0 +1,2 @@
+ALTER TABLE funding_sources
+    ADD COLUMN balance NUMERIC(14,2) NOT NULL DEFAULT 0;
