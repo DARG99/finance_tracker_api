@@ -1,9 +1,11 @@
 package com.money.finance_tracker.repository;
 
 import com.money.finance_tracker.entity.Transaction;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.List;
 import java.util.Optional;
 
 public interface TransactionRepository
@@ -11,5 +13,10 @@ public interface TransactionRepository
 
     Optional<Transaction> findByIdAndUserId(Long id, Long userId);
 
-    List<Transaction> findAllByUserIdOrderByTransactionDateDesc(Long userId);
+    @EntityGraph(attributePaths = {
+            "sourceFundingSource",
+            "destinationFundingSource",
+            "category"
+    })
+    Page<Transaction> findByUserId(Long userId, Pageable pageable);
 }

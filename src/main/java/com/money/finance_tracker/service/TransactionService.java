@@ -1,5 +1,6 @@
 package com.money.finance_tracker.service;
 
+import com.money.finance_tracker.dto.PageResponseDto;
 import com.money.finance_tracker.dto.TransactionDto;
 import com.money.finance_tracker.dto.TransactionResponseDto;
 import com.money.finance_tracker.dto.TransactionUpdateDto;
@@ -14,6 +15,10 @@ import com.money.finance_tracker.repository.TransactionRepository;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,12 +59,38 @@ public class TransactionService {
     }
 
     @Transactional(readOnly = true)
-    public List<TransactionResponseDto> getTransactions(User user) {
-        return transactionRepository
-                .findAllByUserIdOrderByTransactionDateDesc(user.getId())
+    public PageResponseDto<TransactionResponseDto> getTransactions(
+            User user,
+            int page,
+            int size
+    ) {
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by(
+                        Sort.Order.desc("transactionDate"),
+                        Sort.Order.desc("id")
+                )
+        );
+
+        Page<Transaction> transactionPage = transactionRepository
+                .findByUserId(user.getId(), pageable);
+
+        List<TransactionResponseDto> transactions = transactionPage
+                .getContent()
                 .stream()
                 .map(transactionMapper::toResponseDto)
                 .toList();
+
+        return new PageResponseDto<>(
+                transactions,
+                transactionPage.getNumber(),
+                transactionPage.getSize(),
+                transactionPage.getTotalElements(),
+                transactionPage.getTotalPages(),
+                transactionPage.isFirst(),
+                transactionPage.isLast()
+        );
     }
 
     @Transactional(readOnly = true)

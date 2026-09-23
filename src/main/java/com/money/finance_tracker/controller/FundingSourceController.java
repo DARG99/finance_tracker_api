@@ -1,32 +1,45 @@
 package com.money.finance_tracker.controller;
 
 import com.money.finance_tracker.dto.FundingSourceDto;
+import com.money.finance_tracker.dto.FundingSourceResponseDto;
 import com.money.finance_tracker.entity.User;
 import com.money.finance_tracker.service.FundingSourceService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/funding-sources")
+@RequiredArgsConstructor
 public class FundingSourceController {
-    @Autowired
-    private FundingSourceService fundingSourceService;
 
+    private final FundingSourceService fundingSourceService;
 
     @PostMapping
-    public ResponseEntity<Void> addFundingSource(
+    public ResponseEntity<FundingSourceResponseDto> addFundingSource(
             @Valid @RequestBody FundingSourceDto dto,
             @AuthenticationPrincipal User user
     ) {
-        fundingSourceService.addFundingSource(dto, user);
+        FundingSourceResponseDto fundingSource =
+                fundingSourceService.addFundingSource(dto, user);
 
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(fundingSource);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<FundingSourceResponseDto>> getFundingSources(
+            @AuthenticationPrincipal User user
+    ) {
+        return ResponseEntity.ok(
+                fundingSourceService.getFundingSources(user)
+        );
     }
 }

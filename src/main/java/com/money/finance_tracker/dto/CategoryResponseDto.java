@@ -1,6 +1,5 @@
 package com.money.finance_tracker.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -8,7 +7,8 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class CategoryDto {
-    @NotBlank(message = "Funding source name is required")
+public class CategoryResponseDto {
+
+    private Long id;
     private String name;
 }

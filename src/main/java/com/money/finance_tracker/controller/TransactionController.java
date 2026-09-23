@@ -1,5 +1,6 @@
 package com.money.finance_tracker.controller;
 
+import com.money.finance_tracker.dto.PageResponseDto;
 import com.money.finance_tracker.dto.TransactionDto;
 import com.money.finance_tracker.dto.TransactionResponseDto;
 import com.money.finance_tracker.dto.TransactionUpdateDto;
@@ -35,11 +36,13 @@ public class TransactionController {
     }
 
     @GetMapping
-    public ResponseEntity<List<TransactionResponseDto>> getTransactions(
-            @AuthenticationPrincipal User user
+    public ResponseEntity<PageResponseDto<TransactionResponseDto>> getTransactions(
+            @AuthenticationPrincipal User user,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size
     ) {
         return ResponseEntity.ok(
-                transactionService.getTransactions(user)
+                transactionService.getTransactions(user, page, size)
         );
     }
 
