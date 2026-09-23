@@ -20,15 +20,20 @@ public class FundingSourceService {
     @Autowired
     private FundingSourceRepository fundingSourceRepository;
 
+    @Transactional
     public FundingSourceResponseDto addFundingSource(
             FundingSourceDto dto,
             User user
     ) {
-        FundingSource fundingSource = new FundingSource();
+        BigDecimal initialBalance = dto.getInitialBalance() != null
+                ? dto.getInitialBalance()
+                : BigDecimal.ZERO;
 
+        FundingSource fundingSource = new FundingSource();
         fundingSource.setName(dto.getName());
         fundingSource.setUser(user);
-        fundingSource.setBalance(BigDecimal.ZERO);
+        fundingSource.setInitialBalance(initialBalance);
+        fundingSource.setBalance(initialBalance);
 
         FundingSource savedFundingSource =
                 fundingSourceRepository.save(fundingSource);

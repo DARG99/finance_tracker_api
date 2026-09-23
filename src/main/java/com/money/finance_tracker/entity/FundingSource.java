@@ -30,7 +30,9 @@ public class FundingSource {
     @JsonBackReference
     private User user;
 
-    @NotNull
+    @Column(name = "initial_balance", nullable = false, precision = 14, scale = 2)
+    private BigDecimal initialBalance = BigDecimal.ZERO;
+
     @Column(nullable = false, precision = 14, scale = 2)
     private BigDecimal balance = BigDecimal.ZERO;
 

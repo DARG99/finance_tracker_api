@@ -25,10 +25,13 @@ public class Transaction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotNull(message = "Transaction type is required")
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(nullable = false, columnDefinition = "transaction_type")
+    @Column(
+            name = "type",
+            nullable = false,
+            columnDefinition = "transaction_type"
+    )
     private TransactionTypeEnum type;
 
     @NotNull(message = "Amount is required")

@@ -22,7 +22,7 @@ public class CategoryController {
     private CategoryService categoryService;
 
     @PostMapping
-    public ResponseEntity<Void> addFundingSource(
+    public ResponseEntity<Void> addCategory(
             @Valid @RequestBody CategoryDto dto,
             @AuthenticationPrincipal User user
     ) {
