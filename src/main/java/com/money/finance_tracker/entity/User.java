@@ -73,18 +73,6 @@ public class User implements UserDetails {
         updatedAt = LocalDateTime.now();
     }
 
-    public void addFundingSource(FundingSource fs) {
-        if (fs == null) return;
-        fs.setUser(this);
-        this.fundingSources.add(fs);
-    }
-
-    public void removeFundingSource(FundingSource fs) {
-        if (fs == null) return;
-        this.fundingSources.remove(fs);
-        fs.setUser(null);
-    }
-
     @Override
     @NullMarked
     public Collection<? extends GrantedAuthority> getAuthorities() {
