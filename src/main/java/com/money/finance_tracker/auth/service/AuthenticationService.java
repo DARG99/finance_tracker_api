@@ -3,6 +3,7 @@ package com.money.finance_tracker.auth.service;
 import com.money.finance_tracker.auth.dto.LoginUserDto;
 import com.money.finance_tracker.auth.dto.RegisterUserDto;
 import com.money.finance_tracker.entity.User;
+import com.money.finance_tracker.entity.UserRole;
 import com.money.finance_tracker.repository.UserRepository;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -34,6 +35,7 @@ public class AuthenticationService {
                 .passwordHash(
                         passwordEncoder.encode(input.getPassword())
                 )
+                .role(UserRole.USER)
                 .build();
 
         return userRepository.save(user);
