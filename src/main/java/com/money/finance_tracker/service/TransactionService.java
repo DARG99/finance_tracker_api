@@ -10,7 +10,6 @@ import com.money.finance_tracker.repository.CategoryRepository;
 import com.money.finance_tracker.repository.FundingSourceRepository;
 import com.money.finance_tracker.repository.TransactionRepository;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
