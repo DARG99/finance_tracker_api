@@ -42,4 +42,14 @@ public class FundingSourceController {
                 fundingSourceService.getFundingSources(user)
         );
     }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteFundingSource(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User user
+    ) {
+        fundingSourceService.deleteFundingSource(id, user);
+
+        return ResponseEntity.noContent().build();
+    }
 }

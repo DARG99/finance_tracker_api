@@ -4,15 +4,22 @@ import com.money.finance_tracker.dto.PageResponseDto;
 import com.money.finance_tracker.dto.TransactionDto;
 import com.money.finance_tracker.dto.TransactionResponseDto;
 import com.money.finance_tracker.dto.TransactionUpdateDto;
+import com.money.finance_tracker.entity.TransactionTypeEnum;
 import com.money.finance_tracker.entity.User;
 import com.money.finance_tracker.service.TransactionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.data.domain.Pageable;
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -36,13 +43,32 @@ public class TransactionController {
     }
 
     @GetMapping
-    public ResponseEntity<PageResponseDto<TransactionResponseDto>> getTransactions(
+    public ResponseEntity<Page<TransactionResponseDto>> getTransactions(
             @AuthenticationPrincipal User user,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size
+
+            @RequestParam(required = false) TransactionTypeEnum type,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) String search,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate from,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate to,
+
+            @PageableDefault(
+                    size = 50,
+                    sort = "transactionDate",
+                    direction = Sort.Direction.DESC
+            )
+            Pageable pageable
     ) {
         return ResponseEntity.ok(
-                transactionService.getTransactions(user, page, size)
+                transactionService.getTransactions(
+                        user, type, categoryId, search, from, to, pageable
+                )
         );
     }
 

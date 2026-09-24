@@ -9,6 +9,7 @@ import com.money.finance_tracker.mapper.TransactionMapper;
 import com.money.finance_tracker.repository.CategoryRepository;
 import com.money.finance_tracker.repository.FundingSourceRepository;
 import com.money.finance_tracker.repository.TransactionRepository;
+import com.money.finance_tracker.repository.TransactionSpecifications;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -82,39 +83,27 @@ public class TransactionService {
         return transactionRepository.save(transaction);
     }
 
-    @Transactional(readOnly = true)
-    public PageResponseDto<TransactionResponseDto> getTransactions(
+    @Transactional
+    public Page<TransactionResponseDto> getTransactions(
             User user,
-            int page,
-            int size
+            TransactionTypeEnum type,
+            Long categoryId,
+            String search,
+            LocalDate from,
+            LocalDate to,
+            Pageable pageable
     ) {
-        Pageable pageable = PageRequest.of(
-                page,
-                size,
-                Sort.by(
-                        Sort.Order.desc("transactionDate"),
-                        Sort.Order.desc("id")
-                )
-        );
-
-        Page<Transaction> transactionPage = transactionRepository
-                .findByUserId(user.getId(), pageable);
-
-        List<TransactionResponseDto> transactions = transactionPage
-                .getContent()
-                .stream()
-                .map(transactionMapper::toResponseDto)
-                .toList();
-
-        return new PageResponseDto<>(
-                transactions,
-                transactionPage.getNumber(),
-                transactionPage.getSize(),
-                transactionPage.getTotalElements(),
-                transactionPage.getTotalPages(),
-                transactionPage.isFirst(),
-                transactionPage.isLast()
-        );
+        return transactionRepository.findAll(
+                TransactionSpecifications.filteredBy(
+                        user.getId(),
+                        type,
+                        categoryId,
+                        search,
+                        from,
+                        to
+                ),
+                pageable
+        ).map(transactionMapper::toResponseDto);
     }
 
     @Transactional(readOnly = true)

@@ -6,10 +6,7 @@ import com.money.finance_tracker.entity.Transaction;
 import com.money.finance_tracker.entity.TransactionTypeEnum;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.EntityGraph;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
@@ -17,8 +14,9 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
-public interface TransactionRepository
-        extends JpaRepository<Transaction, Long> {
+public interface TransactionRepository extends
+        JpaRepository<Transaction, Long>,
+        JpaSpecificationExecutor<Transaction> {
 
     Optional<Transaction> findByIdAndUserId(Long id, Long userId);
 
@@ -88,4 +86,29 @@ public interface TransactionRepository
     WHERE t.user.id = :userId
     """)
     int deleteAllByUserId(@Param("userId") Long userId);
+
+    @Query("""
+    SELECT COUNT(t) > 0
+    FROM Transaction t
+    WHERE t.user.id = :userId
+      AND t.category.id = :categoryId
+""")
+    boolean existsByCategoryIdAndUserId(
+            Long categoryId,
+            Long userId
+    );
+
+    @Query("""
+    SELECT COUNT(t) > 0
+    FROM Transaction t
+    WHERE t.user.id = :userId
+      AND (
+            t.sourceFundingSource.id = :fundingSourceId
+            OR t.destinationFundingSource.id = :fundingSourceId
+      )
+""")
+    boolean existsByFundingSourceIdAndUserId(
+            Long fundingSourceId,
+            Long userId
+    );
 }
