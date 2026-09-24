@@ -21,5 +21,7 @@ public interface FundingSourceRepository extends JpaRepository<FundingSource, Lo
     """)
     BigDecimal sumBalancesByUserId(Long userId);
 
+
+
 }
 

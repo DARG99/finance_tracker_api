@@ -4,10 +4,7 @@ import com.money.finance_tracker.dto.PageResponseDto;
 import com.money.finance_tracker.dto.TransactionDto;
 import com.money.finance_tracker.dto.TransactionResponseDto;
 import com.money.finance_tracker.dto.TransactionUpdateDto;
-import com.money.finance_tracker.entity.Category;
-import com.money.finance_tracker.entity.FundingSource;
-import com.money.finance_tracker.entity.Transaction;
-import com.money.finance_tracker.entity.User;
+import com.money.finance_tracker.entity.*;
 import com.money.finance_tracker.mapper.TransactionMapper;
 import com.money.finance_tracker.repository.CategoryRepository;
 import com.money.finance_tracker.repository.FundingSourceRepository;
@@ -22,6 +19,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -56,6 +54,33 @@ public class TransactionService {
         Transaction savedTransaction = transactionRepository.save(transaction);
 
         return transactionMapper.toResponseDto(savedTransaction);
+    }
+
+    @Transactional
+    public Transaction createExpenseFromSubscription(
+            Subscription subscription,
+            LocalDate paymentDate
+    ) {
+        Transaction transaction = new Transaction();
+
+        transaction.setUser(subscription.getUser());
+        transaction.setType(TransactionTypeEnum.EXPENSE);
+        transaction.setAmount(subscription.getAmount());
+
+        transaction.setSourceFundingSource(
+                subscription.getFundingSource()
+        );
+
+        transaction.setDestinationFundingSource(null);
+        transaction.setCategory(subscription.getCategory());
+
+        transaction.setDescription(subscription.getName());
+        transaction.setTransactionDate(paymentDate);
+
+        subscription.getFundingSource()
+                .subtractFromBalance(subscription.getAmount());
+
+        return transactionRepository.save(transaction);
     }
 
     @Transactional(readOnly = true)
