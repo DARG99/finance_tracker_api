@@ -45,22 +45,19 @@ public class TransactionController {
     @GetMapping
     public ResponseEntity<Page<TransactionResponseDto>> getTransactions(
             @AuthenticationPrincipal User user,
-
             @RequestParam(required = false) TransactionTypeEnum type,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String search,
-
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate from,
-
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate to,
 
             @PageableDefault(
                     size = 50,
-                    sort = "transactionDate",
+                    sort = {"transactionDate", "createdAt"},
                     direction = Sort.Direction.DESC
             )
             Pageable pageable
