@@ -12,4 +12,6 @@ public interface SubscriptionPaymentRepository
             Long subscriptionId,
             LocalDate scheduledFor
     );
+
+    boolean existsBySubscriptionId(Long subscriptionId);
 }

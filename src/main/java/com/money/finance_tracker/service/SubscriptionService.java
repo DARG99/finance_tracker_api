@@ -5,8 +5,10 @@ import com.money.finance_tracker.entity.*;
 import com.money.finance_tracker.mapper.SubscriptionMapper;
 import com.money.finance_tracker.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -18,6 +20,7 @@ public class SubscriptionService {
     private final FundingSourceRepository fundingSourceRepository;
     private final CategoryRepository categoryRepository;
     private final SubscriptionMapper subscriptionMapper;
+    private final SubscriptionPaymentRepository subscriptionPaymentRepository;
 
     @Transactional
     public SubscriptionResponseDto createSubscription(
@@ -119,16 +122,16 @@ public class SubscriptionService {
     }
 
     @Transactional
-    public void deactivateSubscription(
+    public SubscriptionResponseDto deactivateSubscription(
             Long subscriptionId,
             User user
     ) {
-        Subscription subscription =
-                findSubscription(subscriptionId, user);
+        Subscription subscription = findSubscription(subscriptionId, user);
 
         subscription.setActive(false);
-    }
 
+        return subscriptionMapper.toResponseDto(subscription);
+    }
     private Subscription findSubscription(
             Long subscriptionId,
             User user
@@ -160,5 +163,29 @@ public class SubscriptionService {
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Category not found"
                 ));
+    }
+
+    @Transactional
+    public void deleteSubscription(Long subscriptionId, User user) {
+        Subscription subscription = subscriptionRepository
+                .findByIdAndUserId(subscriptionId, user.getId())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Subscription not found"
+                ));
+
+        boolean hasPaymentHistory =
+                subscriptionPaymentRepository.existsBySubscriptionId(
+                        subscriptionId
+                );
+
+        if (hasPaymentHistory) {
+            // Keep it for historical context, but stop future payments.
+            subscription.setActive(false);
+            return;
+        }
+
+        // No generated transaction/payment history exists.
+        subscriptionRepository.delete(subscription);
     }
 }

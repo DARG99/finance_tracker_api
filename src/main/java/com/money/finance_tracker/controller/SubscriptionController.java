@@ -50,12 +50,22 @@ public class SubscriptionController {
         );
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deactivateSubscription(
+    @PatchMapping("/{id}/deactivate")
+    public ResponseEntity<SubscriptionResponseDto> deactivateSubscription(
             @PathVariable Long id,
             @AuthenticationPrincipal User user
     ) {
-        subscriptionService.deactivateSubscription(id, user);
+        return ResponseEntity.ok(
+                subscriptionService.deactivateSubscription(id, user)
+        );
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteSubscription(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User user
+    ) {
+        subscriptionService.deleteSubscription(id, user);
 
         return ResponseEntity.noContent().build();
     }
