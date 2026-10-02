@@ -2,10 +2,13 @@ package com.money.finance_tracker.auth.controller;
 
 import com.money.finance_tracker.auth.dto.LoginUserDto;
 import com.money.finance_tracker.auth.dto.RegisterUserDto;
+import com.money.finance_tracker.auth.dto.RefreshTokenDto;
 import com.money.finance_tracker.auth.entity.LoginResponse;
 import com.money.finance_tracker.auth.service.AuthenticationService;
+import com.money.finance_tracker.auth.service.RefreshSessionService;
 import com.money.finance_tracker.entity.User;
-import com.money.finance_tracker.util.JwtService;
+import jakarta.validation.Valid;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,12 +18,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/auth")
 @RestController
 public class AuthenticationController {
-    private final JwtService jwtService;
+    private final RefreshSessionService refreshSessionService;
 
     private final AuthenticationService authenticationService;
 
-    public AuthenticationController(JwtService jwtService, AuthenticationService authenticationService) {
-        this.jwtService = jwtService;
+    public AuthenticationController(RefreshSessionService refreshSessionService, AuthenticationService authenticationService) {
+        this.refreshSessionService = refreshSessionService;
         this.authenticationService = authenticationService;
     }
 
@@ -35,12 +38,19 @@ public class AuthenticationController {
     public ResponseEntity<LoginResponse> authenticate(@RequestBody LoginUserDto loginUserDto) {
         User authenticatedUser = authenticationService.authenticate(loginUserDto);
 
-        String jwtToken = jwtService.generateToken(authenticatedUser);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(refreshSessionService.create(authenticatedUser));
+    }
 
-        LoginResponse loginResponse = new LoginResponse();
-        loginResponse.setExpiresIn(jwtService.getExpirationTime());
-        loginResponse.setToken(jwtToken);
+    @PostMapping("/refresh")
+    public ResponseEntity<LoginResponse> refresh(@Valid @RequestBody RefreshTokenDto dto) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(refreshSessionService.refresh(dto.refreshToken()));
+    }
 
-        return ResponseEntity.ok(loginResponse);
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@Valid @RequestBody RefreshTokenDto dto) {
+        refreshSessionService.logout(dto.refreshToken());
+        return ResponseEntity.noContent().build();
     }
 }

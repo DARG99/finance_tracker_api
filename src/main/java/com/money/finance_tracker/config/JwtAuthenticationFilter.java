@@ -33,6 +33,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        // A stale access token must not prevent login, refresh, or logout.
+        return switch (request.getServletPath()) {
+            case "/api/auth/login", "/api/auth/signup", "/api/auth/refresh", "/api/auth/logout" -> true;
+            default -> false;
+        };
+    }
+
+    @Override
     protected void doFilterInternal(
             @NonNull HttpServletRequest request,
             @NonNull HttpServletResponse response,
@@ -72,4 +81,3 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
     }
 }
-

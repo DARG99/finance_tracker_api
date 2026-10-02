@@ -52,6 +52,9 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authenticationProvider(authenticationProvider)
+                .exceptionHandling(errors -> errors.authenticationEntryPoint(
+                        (request, response, exception) -> response.sendError(401)
+                ))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
@@ -119,4 +122,3 @@ public class SecurityConfig {
         return source;
     }
 }
-

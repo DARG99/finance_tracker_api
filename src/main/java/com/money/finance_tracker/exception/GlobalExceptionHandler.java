@@ -67,8 +67,8 @@ public class GlobalExceptionHandler {
         }
 
         if (exception instanceof ExpiredJwtException) {
-            errorDetail = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), exception.getMessage());
-            errorDetail.setProperty("description", "The JWT token has expired");
+            errorDetail = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(401), "The JWT token has expired");
+            errorDetail.setProperty("description", "Refresh your session to continue");
         }
 
         if (errorDetail == null) {
