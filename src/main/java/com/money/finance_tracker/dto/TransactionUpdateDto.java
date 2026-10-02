@@ -1,5 +1,6 @@
 package com.money.finance_tracker.dto;
 
+import com.money.finance_tracker.entity.TransactionNature;
 import jakarta.validation.constraints.Positive;
 import lombok.Data;
 
@@ -15,6 +16,9 @@ public class TransactionUpdateDto {
     private Long sourceFundingSourceId;
     private Long destinationFundingSourceId;
     private Long categoryId;
+
+    private TransactionNature transactionNature;
+    private Long reimbursementForTransactionId;
 
     private String description;
     private LocalDate transactionDate;

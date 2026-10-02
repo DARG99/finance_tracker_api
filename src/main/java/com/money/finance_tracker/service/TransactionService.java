@@ -320,6 +320,14 @@ public class TransactionService {
     ) {
         Transaction transaction = findTransaction(id, user);
 
+        if (transaction.getType() != TransactionTypeEnum.INCOME
+                && (dto.getTransactionNature() != null
+                || dto.getReimbursementForTransactionId() != null)) {
+            throw new IllegalArgumentException(
+                    "Only income transactions can change reimbursement details"
+            );
+        }
+
         switch (transaction.getType()) {
             case EXPENSE -> patchExpense(transaction, dto, user);
             case INCOME -> patchIncome(transaction, dto, user);
@@ -389,6 +397,52 @@ public class TransactionService {
                     dto.getDestinationFundingSourceId(), user
             );
         }
+
+        TransactionNature nature = dto.getTransactionNature() != null
+                ? dto.getTransactionNature() : transaction.getTransactionNature();
+        Transaction originalExpense = null;
+        if (nature == TransactionNature.REIMBURSEMENT) {
+            originalExpense = dto.getReimbursementForTransactionId() != null
+                    ? findTransaction(dto.getReimbursementForTransactionId(), user)
+                    : transaction.getReimbursementForTransaction();
+            if (originalExpense == null) {
+                throw new IllegalArgumentException(
+                        "A reimbursement must reference the original expense"
+                );
+            }
+            if (originalExpense.getType() != TransactionTypeEnum.EXPENSE) {
+                throw new IllegalArgumentException(
+                        "A reimbursement can only reference an expense"
+                );
+            }
+
+            BigDecimal alreadyReimbursed = transactionRepository.getReimbursedAmountForExpense(
+                    originalExpense.getId(), user.getId(),
+                    TransactionTypeEnum.INCOME, TransactionNature.REIMBURSEMENT
+            );
+            // Validate before changing the entity so the query sees the old amount/link.
+            // An existing reimbursement must not count itself twice when edited.
+            if (transaction.getTransactionNature() == TransactionNature.REIMBURSEMENT
+                    && transaction.getReimbursementForTransaction() != null
+                    && originalExpense.getId().equals(
+                            transaction.getReimbursementForTransaction().getId())) {
+                alreadyReimbursed = alreadyReimbursed.subtract(transaction.getAmount());
+            }
+            BigDecimal amount = dto.getAmount() != null
+                    ? dto.getAmount() : transaction.getAmount();
+            if (alreadyReimbursed.add(amount).compareTo(originalExpense.getAmount()) > 0) {
+                throw new IllegalArgumentException(
+                        "Reimbursement amount exceeds the remaining expense amount"
+                );
+            }
+        } else if (dto.getReimbursementForTransactionId() != null) {
+            throw new IllegalArgumentException(
+                    "Normal income cannot reference a reimbursed expense"
+            );
+        }
+
+        transaction.setTransactionNature(nature);
+        transaction.setReimbursementForTransaction(originalExpense);
 
         boolean balanceChanged =
                 dto.getAmount() != null || newDestination != null;
