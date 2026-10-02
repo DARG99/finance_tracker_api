@@ -67,6 +67,15 @@ public class Transaction {
     @Column(name = "transaction_date", nullable = false)
     private LocalDate transactionDate;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "transaction_nature", nullable = false)
+    private TransactionNature transactionNature = TransactionNature.NORMAL;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reimbursement_for_transaction_id")
+    @JsonIgnore
+    private Transaction reimbursementForTransaction;
+
     // Automatically set by the backend
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

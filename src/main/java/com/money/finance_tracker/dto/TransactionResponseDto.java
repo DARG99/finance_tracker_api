@@ -1,5 +1,6 @@
 package com.money.finance_tracker.dto;
 
+import com.money.finance_tracker.entity.TransactionNature;
 import com.money.finance_tracker.entity.TransactionTypeEnum;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -24,6 +25,12 @@ public class TransactionResponseDto {
 
     private Long destinationFundingSourceId;
     private String destinationFundingSourceName;
+
+    private TransactionNature transactionNature;
+
+    private Long reimbursementForTransactionId;
+
+    private String reimbursementForDescription;
 
     private Long categoryId;
     private String categoryName;

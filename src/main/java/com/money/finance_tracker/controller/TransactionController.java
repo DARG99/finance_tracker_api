@@ -4,6 +4,7 @@ import com.money.finance_tracker.dto.PageResponseDto;
 import com.money.finance_tracker.dto.TransactionDto;
 import com.money.finance_tracker.dto.TransactionResponseDto;
 import com.money.finance_tracker.dto.TransactionUpdateDto;
+import com.money.finance_tracker.entity.TransactionNature;
 import com.money.finance_tracker.entity.TransactionTypeEnum;
 import com.money.finance_tracker.entity.User;
 import com.money.finance_tracker.service.TransactionService;
@@ -47,24 +48,28 @@ public class TransactionController {
             @AuthenticationPrincipal User user,
             @RequestParam(required = false) TransactionTypeEnum type,
             @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Long fundingSourceId,
             @RequestParam(required = false) String search,
-            @RequestParam(required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-            LocalDate from,
-            @RequestParam(required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-            LocalDate to,
-
+            @RequestParam(required = false) LocalDate from,
+            @RequestParam(required = false) LocalDate to,
+            @RequestParam(required = false) TransactionNature transactionNature,
             @PageableDefault(
                     size = 50,
                     sort = {"transactionDate", "createdAt"},
                     direction = Sort.Direction.DESC
-            )
-            Pageable pageable
+            ) Pageable pageable
     ) {
         return ResponseEntity.ok(
                 transactionService.getTransactions(
-                        user, type, categoryId, search, from, to, pageable
+                        user,
+                        type,
+                        categoryId,
+                        fundingSourceId,
+                        search,
+                        from,
+                        to,
+                        transactionNature,
+                        pageable
                 )
         );
     }
@@ -98,5 +103,24 @@ public class TransactionController {
         transactionService.deleteTransaction(id, user);
 
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/reimbursable-expenses")
+    public ResponseEntity<?> getReimbursableExpenses(
+            @AuthenticationPrincipal User user,
+            @RequestParam(required = false) String search,
+            @PageableDefault(
+                    size = 20,
+                    sort = {"transactionDate", "createdAt"},
+                    direction = Sort.Direction.DESC
+            ) Pageable pageable
+    ) {
+        return ResponseEntity.ok(
+                transactionService.getReimbursableExpenses(
+                        user,
+                        search,
+                        pageable
+                )
+        );
     }
 }

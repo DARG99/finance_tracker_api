@@ -1,7 +1,9 @@
 package com.money.finance_tracker.repository;
 
 import com.money.finance_tracker.entity.Transaction;
+import com.money.finance_tracker.entity.TransactionNature;
 import com.money.finance_tracker.entity.TransactionTypeEnum;
+import jakarta.persistence.criteria.JoinType;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDate;
@@ -15,9 +17,11 @@ public final class TransactionSpecifications {
             Long userId,
             TransactionTypeEnum type,
             Long categoryId,
+            Long fundingSourceId,
             String search,
             LocalDate from,
-            LocalDate to
+            LocalDate to,
+            TransactionNature transactionNature
     ) {
         return (root, query, builder) -> {
             var predicate = builder.conjunction();
@@ -34,12 +38,35 @@ public final class TransactionSpecifications {
                 );
             }
 
+            if (transactionNature != null) {
+                predicate = builder.and(
+                        predicate,
+                        builder.equal(
+                                root.get("transactionNature"),
+                                transactionNature
+                        )
+                );
+            }
+
             if (categoryId != null) {
                 predicate = builder.and(
                         predicate,
                         builder.equal(
                                 root.get("category").get("id"),
                                 categoryId
+                        )
+                );
+            }
+
+            if (fundingSourceId != null) {
+                // Either side can be absent for income/expenses; preserve those rows.
+                var source = root.join("sourceFundingSource", JoinType.LEFT);
+                var destination = root.join("destinationFundingSource", JoinType.LEFT);
+                predicate = builder.and(
+                        predicate,
+                        builder.or(
+                                builder.equal(source.get("id"), fundingSourceId),
+                                builder.equal(destination.get("id"), fundingSourceId)
                         )
                 );
             }

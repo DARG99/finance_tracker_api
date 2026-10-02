@@ -1,6 +1,6 @@
 package com.money.finance_tracker.service;
 
-import com.money.finance_tracker.dto.PageResponseDto;
+import com.money.finance_tracker.dto.ReimbursableExpenseResponseDto;
 import com.money.finance_tracker.dto.TransactionDto;
 import com.money.finance_tracker.dto.TransactionResponseDto;
 import com.money.finance_tracker.dto.TransactionUpdateDto;
@@ -13,14 +13,12 @@ import com.money.finance_tracker.repository.TransactionSpecifications;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +28,39 @@ public class TransactionService {
     private final FundingSourceRepository fundingSourceRepository;
     private final CategoryRepository categoryRepository;
     private final TransactionMapper transactionMapper;
+
+    @Transactional(readOnly = true)
+    public Page<ReimbursableExpenseResponseDto> getReimbursableExpenses(
+            User user,
+            String search,
+            Pageable pageable
+    ) {
+        String normalizedSearch = search == null
+                ? ""
+                : search.trim();
+
+        return transactionRepository.findReimbursableExpenses(
+                user.getId(),
+                TransactionTypeEnum.EXPENSE,
+                TransactionTypeEnum.INCOME,
+                TransactionNature.REIMBURSEMENT,
+                normalizedSearch,
+                pageable
+        ).map(expense -> {
+            BigDecimal reimbursedAmount =
+                    transactionRepository.getReimbursedAmountForExpense(
+                            expense.getId(),
+                            user.getId(),
+                            TransactionTypeEnum.INCOME,
+                            TransactionNature.REIMBURSEMENT
+                    );
+
+            return transactionMapper.toReimbursableExpenseResponseDto(
+                    expense,
+                    reimbursedAmount
+            );
+        });
+    }
 
     @Transactional
     public TransactionResponseDto addTransaction(
@@ -61,10 +92,14 @@ public class TransactionService {
             Subscription subscription,
             LocalDate paymentDate
     ) {
+
+
         Transaction transaction = new Transaction();
 
         transaction.setUser(subscription.getUser());
         transaction.setType(TransactionTypeEnum.EXPENSE);
+        transaction.setTransactionNature(TransactionNature.NORMAL);
+        transaction.setReimbursementForTransaction(null);
         transaction.setAmount(subscription.getAmount());
 
         transaction.setSourceFundingSource(
@@ -83,14 +118,15 @@ public class TransactionService {
         return transactionRepository.save(transaction);
     }
 
-    @Transactional
     public Page<TransactionResponseDto> getTransactions(
             User user,
             TransactionTypeEnum type,
             Long categoryId,
+            Long fundingSourceId,
             String search,
             LocalDate from,
             LocalDate to,
+            TransactionNature transactionNature,
             Pageable pageable
     ) {
         return transactionRepository.findAll(
@@ -98,14 +134,15 @@ public class TransactionService {
                         user.getId(),
                         type,
                         categoryId,
+                        fundingSourceId,
                         search,
                         from,
-                        to
+                        to,
+                        transactionNature
                 ),
                 pageable
         ).map(transactionMapper::toResponseDto);
     }
-
     @Transactional(readOnly = true)
     public TransactionResponseDto getTransactionById(
             Long transactionId,
@@ -131,6 +168,10 @@ public class TransactionService {
             TransactionDto dto,
             User user
     ) {
+
+        transaction.setTransactionNature(TransactionNature.NORMAL);
+        transaction.setReimbursementForTransaction(null);
+
         FundingSource source = findFundingSource(
                 dto.getSourceFundingSourceId(), user
         );
@@ -149,12 +190,58 @@ public class TransactionService {
             User user
     ) {
         FundingSource destination = findFundingSource(
-                dto.getDestinationFundingSourceId(), user
+                dto.getDestinationFundingSourceId(),
+                user
         );
 
-        destination.addToBalance(dto.getAmount());
+        TransactionNature nature = dto.getTransactionNature() == null
+                ? TransactionNature.NORMAL
+                : dto.getTransactionNature();
 
+        transaction.setTransactionNature(nature);
         transaction.setDestinationFundingSource(destination);
+
+        if (nature == TransactionNature.REIMBURSEMENT) {
+            if (dto.getReimbursementForTransactionId() == null) {
+                throw new IllegalArgumentException(
+                        "A reimbursement must reference the original expense"
+                );
+            }
+
+            Transaction originalExpense = findTransaction(
+                    dto.getReimbursementForTransactionId(),
+                    user
+            );
+
+            BigDecimal alreadyReimbursed =
+                    transactionRepository.getReimbursedAmountForExpense(
+                            originalExpense.getId(),
+                            user.getId(),
+                            TransactionTypeEnum.INCOME,
+                            TransactionNature.REIMBURSEMENT
+                    );
+
+            BigDecimal newReimbursedTotal = alreadyReimbursed.add(dto.getAmount());
+
+            if (newReimbursedTotal.compareTo(originalExpense.getAmount()) > 0) {
+                throw new IllegalArgumentException(
+                        "Reimbursement amount exceeds the remaining expense amount"
+                );
+            }
+
+
+            if (originalExpense.getType() != TransactionTypeEnum.EXPENSE) {
+                throw new IllegalArgumentException(
+                        "A reimbursement can only reference an expense"
+                );
+            }
+
+            transaction.setReimbursementForTransaction(originalExpense);
+        } else {
+            transaction.setReimbursementForTransaction(null);
+        }
+
+        destination.addToBalance(dto.getAmount());
     }
 
     private void configureTransfer(
@@ -162,6 +249,9 @@ public class TransactionService {
             TransactionDto dto,
             User user
     ) {
+        transaction.setTransactionNature(TransactionNature.NORMAL);
+        transaction.setReimbursementForTransaction(null);
+
         FundingSource source = findFundingSource(
                 dto.getSourceFundingSourceId(), user
         );

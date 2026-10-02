@@ -1,5 +1,6 @@
 package com.money.finance_tracker.dto;
 
+import com.money.finance_tracker.entity.TransactionNature;
 import com.money.finance_tracker.entity.TransactionTypeEnum;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
@@ -32,6 +33,10 @@ public class TransactionDto {
     private String description;
 
     private LocalDate transactionDate;
+
+    private TransactionNature transactionNature = TransactionNature.NORMAL;
+
+    private Long reimbursementForTransactionId;
 
     @AssertTrue(message = "Invalid funding-source or category combination for this transaction type")
     public boolean isMovementValid() {
