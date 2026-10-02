@@ -201,12 +201,8 @@ public class TransactionService {
         transaction.setTransactionNature(nature);
         transaction.setDestinationFundingSource(destination);
 
-        if (nature == TransactionNature.REIMBURSEMENT) {
-            if (dto.getReimbursementForTransactionId() == null) {
-                throw new IllegalArgumentException(
-                        "A reimbursement must reference the original expense"
-                );
-            }
+        if (nature == TransactionNature.REIMBURSEMENT
+                && dto.getReimbursementForTransactionId() != null) {
 
             Transaction originalExpense = findTransaction(
                     dto.getReimbursementForTransactionId(),
@@ -402,14 +398,17 @@ public class TransactionService {
                 ? dto.getTransactionNature() : transaction.getTransactionNature();
         Transaction originalExpense = null;
         if (nature == TransactionNature.REIMBURSEMENT) {
-            originalExpense = dto.getReimbursementForTransactionId() != null
-                    ? findTransaction(dto.getReimbursementForTransactionId(), user)
+            originalExpense = dto.hasReimbursementForTransactionId()
+                    ? (dto.getReimbursementForTransactionId() == null ? null
+                        : findTransaction(dto.getReimbursementForTransactionId(), user))
                     : transaction.getReimbursementForTransaction();
-            if (originalExpense == null) {
-                throw new IllegalArgumentException(
-                        "A reimbursement must reference the original expense"
-                );
-            }
+        } else if (dto.getReimbursementForTransactionId() != null) {
+            throw new IllegalArgumentException(
+                    "Normal income cannot reference a reimbursed expense"
+            );
+        }
+
+        if (originalExpense != null) {
             if (originalExpense.getType() != TransactionTypeEnum.EXPENSE) {
                 throw new IllegalArgumentException(
                         "A reimbursement can only reference an expense"
@@ -435,10 +434,6 @@ public class TransactionService {
                         "Reimbursement amount exceeds the remaining expense amount"
                 );
             }
-        } else if (dto.getReimbursementForTransactionId() != null) {
-            throw new IllegalArgumentException(
-                    "Normal income cannot reference a reimbursed expense"
-            );
         }
 
         transaction.setTransactionNature(nature);

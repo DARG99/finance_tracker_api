@@ -75,18 +75,15 @@ public class DashboardService {
                         MonthlySpendingDto::getAmount
                 ));
 
-        List<MonthlySpendingDto> monthlySpending =
-                transactionRepository.getMonthlySpending(
-                        userId,
-                        TransactionTypeEnum.EXPENSE,
-                        startDate,
-                        endDate
-                ).stream().map(month -> new MonthlySpendingDto(
-                        month.getMonth(),
-                        month.getAmount().subtract(monthlyReimbursements.getOrDefault(
-                                month.getMonth(), BigDecimal.ZERO
-                        ))
-                )).toList();
+        Map<Integer, BigDecimal> monthlyNetSpending = new java.util.TreeMap<>();
+        transactionRepository.getMonthlySpending(
+                userId, TransactionTypeEnum.EXPENSE, startDate, endDate
+        ).forEach(month -> monthlyNetSpending.put(month.getMonth(), month.getAmount()));
+        monthlyReimbursements.forEach((month, amount) ->
+                monthlyNetSpending.merge(month, amount.negate(), BigDecimal::add));
+        List<MonthlySpendingDto> monthlySpending = monthlyNetSpending.entrySet().stream()
+                .map(entry -> new MonthlySpendingDto(entry.getKey(), entry.getValue()))
+                .toList();
 
         Map<Long, BigDecimal> categoryReimbursements = transactionRepository
                 .getReimbursementsByExpenseCategory(

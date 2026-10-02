@@ -1,6 +1,8 @@
 package com.money.finance_tracker.service;
 
 import com.money.finance_tracker.dto.TransactionUpdateDto;
+import com.money.finance_tracker.dto.TransactionDto;
+import tools.jackson.databind.json.JsonMapper;
 import com.money.finance_tracker.entity.FundingSource;
 import com.money.finance_tracker.entity.Transaction;
 import com.money.finance_tracker.entity.User;
@@ -23,6 +25,7 @@ import static org.mockito.Mockito.*;
 class TransactionServiceTest {
     private TransactionRepository repository;
     private TransactionService service;
+    private FundingSourceRepository fundingSources;
     private User user;
     private Transaction income;
     private Transaction expense;
@@ -31,7 +34,8 @@ class TransactionServiceTest {
     @BeforeEach
     void setUp() {
         repository = mock(TransactionRepository.class);
-        service = new TransactionService(repository, mock(FundingSourceRepository.class),
+        fundingSources = mock(FundingSourceRepository.class);
+        service = new TransactionService(repository, fundingSources,
                 mock(CategoryRepository.class), new TransactionMapper());
         user = new User();
         user.setId(1L);
@@ -72,12 +76,56 @@ class TransactionServiceTest {
     }
 
     @Test
-    void requiresAnOriginalExpense() {
-        TransactionUpdateDto dto = conversion();
-        dto.setReimbursementForTransactionId(null);
-        assertThrows(IllegalArgumentException.class,
-                () -> service.patchTransaction(2L, dto, user));
-        assertEquals(NORMAL, income.getTransactionNature());
+    void marksIncomeAsReimbursementWithoutAnExpense() {
+        TransactionUpdateDto dto = new TransactionUpdateDto();
+        dto.setTransactionNature(REIMBURSEMENT);
+        var response = service.patchTransaction(2L, dto, user);
+        assertEquals(REIMBURSEMENT, response.getTransactionNature());
+        assertNull(response.getReimbursementForTransactionId());
+        assertEquals(new BigDecimal("425"), account.getBalance());
+        verify(repository, never()).getReimbursedAmountForExpense(any(), any(), any(), any());
+    }
+
+    @Test
+    void createsStandaloneReimbursementAndCreditsAccount() {
+        when(fundingSources.findByIdAndUserId(4L, 1L)).thenReturn(Optional.of(account));
+        when(repository.save(any(Transaction.class))).thenAnswer(call -> call.getArgument(0));
+        TransactionDto dto = new TransactionDto();
+        dto.setType(INCOME);
+        dto.setTransactionNature(REIMBURSEMENT);
+        dto.setAmount(new BigDecimal("250"));
+        dto.setDestinationFundingSourceId(4L);
+        var response = service.addTransaction(dto, user);
+        assertEquals(REIMBURSEMENT, response.getTransactionNature());
+        assertNull(response.getReimbursementForTransactionId());
+        assertEquals(new BigDecimal("675"), account.getBalance());
+        verify(repository, never()).getReimbursedAmountForExpense(any(), any(), any(), any());
+    }
+
+    @Test
+    void explicitNullUnlinksExpenseWhileOmissionPreservesIt() {
+        income.setTransactionNature(REIMBURSEMENT);
+        income.setReimbursementForTransaction(expense);
+        JsonMapper json = JsonMapper.builder().build();
+        service.patchTransaction(2L, json.readValue(
+                "{\"description\":\"Combined refund\"}", TransactionUpdateDto.class), user);
+        assertSame(expense, income.getReimbursementForTransaction());
+        service.patchTransaction(2L, json.readValue(
+                "{\"reimbursementForTransactionId\":null}", TransactionUpdateDto.class), user);
+        assertNull(income.getReimbursementForTransaction());
+        assertEquals(REIMBURSEMENT, income.getTransactionNature());
+        assertEquals(new BigDecimal("425"), account.getBalance());
+    }
+
+    @Test
+    void editsStandaloneReimbursementAmount() {
+        income.setTransactionNature(REIMBURSEMENT);
+        TransactionUpdateDto dto = new TransactionUpdateDto();
+        dto.setAmount(new BigDecimal("250"));
+        service.patchTransaction(2L, dto, user);
+        assertEquals(new BigDecimal("650"), account.getBalance());
+        assertNull(income.getReimbursementForTransaction());
+        assertEquals(REIMBURSEMENT, income.getTransactionNature());
     }
 
     @Test

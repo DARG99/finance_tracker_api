@@ -59,23 +59,22 @@ public interface TransactionRepository extends
             @Param("endDate") LocalDate endDate
     );
 
-    // Attribute refunds to the original expense month, even across years.
+    // Linked refunds use the expense month; standalone refunds use the receipt month.
     @Query("""
     SELECT new com.money.finance_tracker.dto.MonthlySpendingDto(
-        MONTH(e.transactionDate),
+        MONTH(COALESCE(e.transactionDate, r.transactionDate)),
         SUM(r.amount)
     )
     FROM Transaction r
-    JOIN r.reimbursementForTransaction e
+    LEFT JOIN r.reimbursementForTransaction e
     WHERE r.user.id = :userId
-      AND e.user.id = :userId
       AND r.type = :incomeType
       AND r.transactionNature = :reimbursementNature
-      AND e.type = :expenseType
-      AND e.transactionDate >= :startDate
-      AND e.transactionDate < :endDate
-    GROUP BY MONTH(e.transactionDate)
-    ORDER BY MONTH(e.transactionDate)
+      AND (e.id IS NULL OR (e.user.id = :userId AND e.type = :expenseType))
+      AND COALESCE(e.transactionDate, r.transactionDate) >= :startDate
+      AND COALESCE(e.transactionDate, r.transactionDate) < :endDate
+    GROUP BY MONTH(COALESCE(e.transactionDate, r.transactionDate))
+    ORDER BY MONTH(COALESCE(e.transactionDate, r.transactionDate))
     """)
     List<MonthlySpendingDto> getMonthlyReimbursementsForExpenses(
             @Param("userId") Long userId,

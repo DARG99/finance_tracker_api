@@ -7,6 +7,7 @@ import com.money.finance_tracker.entity.User;
 import com.money.finance_tracker.repository.FundingSourceRepository;
 import com.money.finance_tracker.repository.TransactionRepository;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.math.BigDecimal;
@@ -22,6 +23,35 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class DashboardServiceTest {
+
+    @Test
+    void includesStandaloneRefundInAMonthWithoutExpenses() {
+        TransactionRepository transactions = mock(TransactionRepository.class);
+        DashboardService service = new DashboardService(
+                transactions, mock(FundingSourceRepository.class));
+        User user = new User();
+        user.setId(1L);
+        LocalDate start = LocalDate.of(2026, 1, 1);
+        LocalDate end = start.plusYears(1);
+        when(transactions.getTotalByTypeAndNature(1L, INCOME, NORMAL))
+                .thenReturn(new BigDecimal("500"));
+        when(transactions.sumAmountByUserAndType(1L, EXPENSE))
+                .thenReturn(new BigDecimal("100"));
+        when(transactions.getTotalByTypeAndNature(1L, INCOME, REIMBURSEMENT))
+                .thenReturn(new BigDecimal("25"));
+        when(transactions.getMonthlySpending(1L, EXPENSE, start, end))
+                .thenReturn(List.of(new MonthlySpendingDto(1, new BigDecimal("100"))));
+        when(transactions.getMonthlyReimbursementsForExpenses(
+                1L, INCOME, REIMBURSEMENT, EXPENSE, start, end))
+                .thenReturn(List.of(new MonthlySpendingDto(2, new BigDecimal("25"))));
+
+        var overview = service.getOverview(user, 2026);
+        assertEquals(new BigDecimal("500"), overview.getAllTimeIncome());
+        assertEquals(new BigDecimal("75"), overview.getAllTimeExpense());
+        assertEquals(List.of(new MonthlySpendingDto(1, new BigDecimal("100")),
+                new MonthlySpendingDto(2, new BigDecimal("-25"))), overview.getMonthlySpending());
+        assertEquals(List.of(), overview.getSpendingByCategory());
+    }
 
     @ParameterizedTest
     @CsvSource({"0, 100", "25, 75", "100, 0"})
