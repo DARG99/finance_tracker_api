@@ -19,10 +19,41 @@ The backend supports scheduling and forecasts. Paths below are relative to `/api
   reverses its debit. An unposted subscription occurrence returns 409 directing the
   caller to subscription management. Deactivation suppresses virtual occurrences
   and deletes unposted generated occurrences, preserving posted history.
-- `GET /dashboard/forecast?horizon=NEXT_MONTH` returns `asOf`, inclusive `through`,
-  and every funding source with `id`, `scheduledExpenses`, `subscriptionExpenses`,
-  and `predictedBalance`. `NEXT_MONTH` is the default; `THIS_MONTH` is the other
-  accepted value. Invalid horizons return 400.
+- `GET /dashboard/forecast` now defaults to `NEXT_PAYDAY`. It returns `asOf`,
+  inclusive `through`, and every funding source with `id`, `scheduledExpenses`,
+  `subscriptionExpenses`, and `predictedBalance`. Missing payday settings return
+  409 with a setup instruction. Explicit `THIS_MONTH` and `NEXT_MONTH` requests
+  remain supported for older clients; invalid horizons return 400.
+
+## Payday settings and frontend integration
+
+The forecast answers **“How much will I have left before my next salary?”**
+The user chooses their normal monthly payday, rather than inferring it from
+income descriptions such as “salario” or “salário”. An early, late, or bonus
+payment should not silently change the forecast period.
+
+- `GET /users/me/payday` returns `{"paydayDay":25}`, or `{"paydayDay":null}` before
+  configuration. The setting belongs to the authenticated user.
+- `PATCH /users/me/payday` accepts `{"paydayDay":25}` and returns the saved setting.
+  A day from 1 to 31 is required; missing, null, or out-of-range values return 400.
+- Remove the current/next-month selector from the frontend. When no payday is
+  configured, show a payday setup control. Once saved, fetch
+  `/dashboard/forecast` (without the old `horizon=NEXT_MONTH` query).
+- Label the result “Money left before payday” and display the returned `through`
+  date as the last day covered. Refetch after changing payday or posting income.
+
+For payday on the 25th, October 11 forecasts through October 24. On October 25,
+a new cycle starts and the forecast runs through November 24. The boundary is
+calendar-based in the account timezone. Days 29–31 clamp to the last day of a
+short month, preserving the chosen day for later months. There is no automatic
+weekend/holiday adjustment.
+
+The last salary is already part of the current balance: it must not be added
+again or used as a replacement for that balance. Future salaries are never
+credited by the forecast. On payday, the new period starts even if salary has
+not yet been recorded; the balance updates when the income is actually posted.
+A negative prediction still means recorded funds do not cover the included
+costs. Early or late salary payments do not move the configured boundary.
 
 Forecasts subtract unpaid manual schedules and active subscription occurrences
 from the current balance, without assuming future income. They do not use the
@@ -64,6 +95,12 @@ All money calculations use `BigDecimal`. Actual overview totals, charts, and
 reimbursement eligibility include posted records only.
 
 ## Migration and verification
+
+Flyway `V12__account_payday.sql` adds the nullable `users.payday_day` setting.
+Existing accounts must select a payday before using the new default forecast.
+Deploy the frontend setup control alongside this change; older explicit month
+requests continue to work.
+
 
 Flyway `V11__scheduled_expenses.sql` adds status, timezone, and stable subscription
 occurrence links, and backfills existing payment links. Existing transactions

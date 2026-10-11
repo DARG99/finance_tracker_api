@@ -38,6 +38,7 @@ class SchedulingIntegrationTest {
         @Override public LocalDate today(User user) { return instant.atZone(ZoneId.of(user.getTimezone())).toLocalDate(); }
     }
     @Autowired org.springframework.web.context.WebApplicationContext webContext;
+    @Autowired UserService userService;
     @Autowired MutableClock clock;
     @Autowired TransactionService service;
     @Autowired ForecastService forecasts;
@@ -245,11 +246,60 @@ class SchedulingIntegrationTest {
                     .contentType("application/json").content(template.formatted("2026-11-01", sourceId, categoryId)))
                     .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isCreated()).andReturn();
             assertTrue(result.getResponse().getContentAsString().contains("\"status\":\"SCHEDULED\""));
-            var forecast = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/dashboard/forecast"))
+            var forecast = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/dashboard/forecast?horizon=NEXT_MONTH"))
                     .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk()).andReturn();
             assertTrue(forecast.getResponse().getContentAsString().contains("2026-11-30"));
             mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/dashboard/forecast?horizon=INVALID"))
                     .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest());
+        } finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
+    }
+
+    @Test void paydayForecastIncludesOnlyCostsBeforeNextSalaryAndDoesNotAddSalaryAgain() {
+        assertNull(userService.getPayday(user).paydayDay());
+        assertEquals(409, assertThrows(ResponseStatusException.class,
+                () -> forecasts.forecast(user, NEXT_PAYDAY)).getStatusCode().value());
+        userService.setPayday(new PaydaySettingsDto(25), user);
+        service.schedule(expense("2026-10-24", "30"), user);
+        service.schedule(expense("2026-10-25", "100"), user);
+        subscription("2026-10-20", SubscriptionFrequency.MONTHLY, "20");
+        subscription("2026-10-25", SubscriptionFrequency.MONTHLY, "50");
+        var before = forecasts.forecast(user, NEXT_PAYDAY);
+        assertEquals(LocalDate.parse("2026-10-24"), before.through());
+        money("1950", before.fundingSources().getFirst().predictedBalance());
+        money("30", before.fundingSources().getFirst().scheduledExpenses());
+        money("20", before.fundingSources().getFirst().subscriptionExpenses());
+
+        clock.instant = Instant.parse("2026-10-25T12:00:00Z");
+        TransactionDto salary = new TransactionDto(); salary.setType(TransactionTypeEnum.INCOME);
+        salary.setAmount(new BigDecimal("1000")); salary.setDestinationFundingSourceId(sourceId);
+        salary.setTransactionDate(LocalDate.parse("2026-10-25")); salary.setDescription("Salário");
+        service.addTransaction(salary, user);
+        var after = forecasts.forecast(user, NEXT_PAYDAY);
+        assertEquals(LocalDate.parse("2026-11-24"), after.through());
+        money("2800", balance()); money("2780", after.fundingSources().getFirst().predictedBalance());
+        userService.setPayday(new PaydaySettingsDto(15), user);
+        assertEquals(LocalDate.parse("2026-11-14"), forecasts.forecast(user, NEXT_PAYDAY).through());
+    }
+
+    @Test void paydaySettingsHttpValidationAndDefaultForecast() throws Exception {
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup(webContext).build();
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(user, null, List.of()));
+        try {
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/dashboard/forecast"))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isConflict());
+            for (String payload : List.of("{}", "{\"paydayDay\":0}", "{\"paydayDay\":32}", "{\"paydayDay\":null}")) {
+                mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/users/me/payday")
+                        .contentType("application/json").content(payload))
+                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest());
+            }
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/users/me/payday")
+                    .contentType("application/json").content("{\"paydayDay\":25}"))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+            assertEquals(25, userService.getPayday(user).paydayDay());
+            var response = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/dashboard/forecast"))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk()).andReturn();
+            assertTrue(response.getResponse().getContentAsString().contains("2026-10-24"));
         } finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
     }
 

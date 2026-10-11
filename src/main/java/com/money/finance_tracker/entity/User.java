@@ -51,6 +51,9 @@ public class User implements UserDetails {
     @Builder.Default
     private String timezone = "Europe/Lisbon";
 
+    @Column(name = "payday_day")
+    private Integer paydayDay;
+
     @Column(nullable = false, updatable = false, name = "created_at")
     private LocalDateTime createdAt;
 

@@ -21,7 +21,7 @@ public class DashboardController {
 
     @GetMapping("/forecast")
     public com.money.finance_tracker.dto.ForecastResponseDto forecast(
-            @RequestParam(defaultValue = "NEXT_MONTH") com.money.finance_tracker.service.ForecastService.Horizon horizon,
+            @RequestParam(defaultValue = "NEXT_PAYDAY") com.money.finance_tracker.service.ForecastService.Horizon horizon,
             @AuthenticationPrincipal User user) {
         return forecastService.forecast(user, horizon);
     }

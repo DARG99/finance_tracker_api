@@ -1,5 +1,7 @@
 package com.money.finance_tracker.service;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import com.money.finance_tracker.dto.ForecastResponseDto;
 import com.money.finance_tracker.entity.*;
 import com.money.finance_tracker.repository.*;
@@ -14,7 +16,7 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 public class ForecastService {
-    public enum Horizon { THIS_MONTH, NEXT_MONTH }
+    public enum Horizon { NEXT_PAYDAY, THIS_MONTH, NEXT_MONTH }
     private record Occurrence(Long subscriptionId, LocalDate date) {}
     private final AccountLedgerService ledger;
     private final AccountClock clock;
@@ -27,7 +29,17 @@ public class ForecastService {
     public ForecastResponseDto forecast(User principal, Horizon horizon) {
         User user = ledger.reconcile(principal.getId());
         LocalDate today = clock.today(user);
-        LocalDate through = YearMonth.from(today).plusMonths(horizon == Horizon.THIS_MONTH ? 0 : 1).atEndOfMonth();
+        LocalDate through;
+        if (horizon == Horizon.NEXT_PAYDAY) {
+            if (user.getPaydayDay() == null) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Set your payday using PATCH /users/me/payday before requesting a payday forecast");
+            }
+            through = PaydaySchedule.nextPayday(today, user.getPaydayDay()).minusDays(1);
+        } else {
+            through = YearMonth.from(today).plusMonths(horizon == Horizon.THIS_MONTH ? 0 : 1).atEndOfMonth();
+        }
         Map<Long, BigDecimal> scheduled = new HashMap<>();
         Map<Long, BigDecimal> recurring = new HashMap<>();
         Set<Occurrence> represented = new HashSet<>();
