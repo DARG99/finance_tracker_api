@@ -37,7 +37,7 @@ public class SubscriptionPayment {
     private Subscription subscription;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "transaction_id", nullable = false, unique = true)
+    @JoinColumn(name = "transaction_id", unique = true)
     private Transaction transaction;
 
     @Column(name = "scheduled_for", nullable = false)

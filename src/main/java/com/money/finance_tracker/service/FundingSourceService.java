@@ -24,6 +24,9 @@ public class FundingSourceService {
     private FundingSourceRepository fundingSourceRepository;
 
     @Autowired
+    private AccountLedgerService ledger;
+
+    @Autowired
     private TransactionRepository transactionRepository;
 
     @Transactional
@@ -31,6 +34,7 @@ public class FundingSourceService {
             FundingSourceDto dto,
             User user
     ) {
+        ledger.lock(user.getId());
         BigDecimal initialBalance = dto.getInitialBalance() != null
                 ? dto.getInitialBalance()
                 : BigDecimal.ZERO;
@@ -49,6 +53,7 @@ public class FundingSourceService {
 
     @Transactional
     public List<FundingSourceResponseDto> getFundingSources(User user) {
+        ledger.reconcile(user.getId());
         return fundingSourceRepository
                 .findAllByUserIdOrderByNameAsc(user.getId())
                 .stream()
@@ -71,6 +76,7 @@ public class FundingSourceService {
             Long fundingSourceId,
             User user
     ) {
+        ledger.lock(user.getId());
         FundingSource fundingSource = fundingSourceRepository
                 .findByIdAndUserId(fundingSourceId, user.getId())
                 .orElseThrow(() -> new ResponseStatusException(

@@ -47,6 +47,10 @@ public class User implements UserDetails {
     @Builder.Default
     private UserRole role = UserRole.USER;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private String timezone = "Europe/Lisbon";
+
     @Column(nullable = false, updatable = false, name = "created_at")
     private LocalDateTime createdAt;
 

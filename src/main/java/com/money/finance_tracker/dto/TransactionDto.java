@@ -22,6 +22,7 @@ public class TransactionDto {
 
     @NotNull(message = "Amount is required")
     @Positive(message = "Amount must be greater than zero")
+    @jakarta.validation.constraints.Digits(integer = 12, fraction = 2)
     private BigDecimal amount;
 
     private Long sourceFundingSourceId;
@@ -32,6 +33,7 @@ public class TransactionDto {
 
     private String description;
 
+    @NotNull(message = "Transaction date is required")
     private LocalDate transactionDate;
 
     private TransactionNature transactionNature = TransactionNature.NORMAL;

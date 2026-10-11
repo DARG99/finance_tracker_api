@@ -17,6 +17,7 @@ public class SubscriptionDto {
 
     @NotNull(message = "Amount is required")
     @Positive(message = "Amount must be greater than zero")
+    @jakarta.validation.constraints.Digits(integer = 12, fraction = 2)
     private BigDecimal amount;
 
     @NotNull(message = "Funding source is required")

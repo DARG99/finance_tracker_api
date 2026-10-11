@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 public class TransactionResponseDto {
 
     private Long id;
+    private com.money.finance_tracker.entity.TransactionStatus status;
 
     private TransactionTypeEnum type;
     private BigDecimal amount;

@@ -19,6 +19,11 @@ public interface TransactionRepository extends
         JpaRepository<Transaction, Long>,
         JpaSpecificationExecutor<Transaction> {
 
+    List<Transaction> findByUserIdAndStatus(Long userId, com.money.finance_tracker.entity.TransactionStatus status);
+    List<Transaction> findBySubscriptionIdAndStatus(Long subscriptionId, com.money.finance_tracker.entity.TransactionStatus status);
+    Optional<Transaction> findBySubscriptionIdAndOccurrenceDate(Long subscriptionId, LocalDate occurrenceDate);
+    boolean existsByReimbursementForTransactionId(Long transactionId);
+
     Optional<Transaction> findByIdAndUserId(Long id, Long userId);
 
     @EntityGraph(attributePaths = {
@@ -32,6 +37,7 @@ public interface TransactionRepository extends
     SELECT COALESCE(SUM(t.amount), 0)
     FROM Transaction t
     WHERE t.user.id = :userId
+      AND t.status = com.money.finance_tracker.entity.TransactionStatus.POSTED
       AND t.type = :type
     """)
     BigDecimal sumAmountByUserAndType(
@@ -46,6 +52,7 @@ public interface TransactionRepository extends
     )
     FROM Transaction t
     WHERE t.user.id = :userId
+      AND t.status = com.money.finance_tracker.entity.TransactionStatus.POSTED
       AND t.type = :type
       AND t.transactionDate >= :startDate
       AND t.transactionDate < :endDate
@@ -68,9 +75,10 @@ public interface TransactionRepository extends
     FROM Transaction r
     LEFT JOIN r.reimbursementForTransaction e
     WHERE r.user.id = :userId
+      AND r.status = com.money.finance_tracker.entity.TransactionStatus.POSTED
       AND r.type = :incomeType
       AND r.transactionNature = :reimbursementNature
-      AND (e.id IS NULL OR (e.user.id = :userId AND e.type = :expenseType))
+      AND (e.id IS NULL OR (e.user.id = :userId AND e.status = com.money.finance_tracker.entity.TransactionStatus.POSTED AND e.type = :expenseType))
       AND COALESCE(e.transactionDate, r.transactionDate) >= :startDate
       AND COALESCE(e.transactionDate, r.transactionDate) < :endDate
     GROUP BY MONTH(COALESCE(e.transactionDate, r.transactionDate))
@@ -94,6 +102,7 @@ public interface TransactionRepository extends
     FROM Transaction t
     JOIN t.category c
     WHERE t.user.id = :userId
+      AND t.status = com.money.finance_tracker.entity.TransactionStatus.POSTED
       AND t.type = :type
       AND t.transactionDate >= :startDate
       AND t.transactionDate < :endDate
@@ -119,8 +128,10 @@ public interface TransactionRepository extends
     JOIN e.category c
     WHERE r.user.id = :userId
       AND e.user.id = :userId
+      AND r.status = com.money.finance_tracker.entity.TransactionStatus.POSTED
       AND r.type = :incomeType
       AND r.transactionNature = :reimbursementNature
+      AND e.status = com.money.finance_tracker.entity.TransactionStatus.POSTED
       AND e.type = :expenseType
       AND e.transactionDate >= :startDate
       AND e.transactionDate < :endDate
@@ -171,6 +182,7 @@ public interface TransactionRepository extends
     SELECT e
     FROM Transaction e
     WHERE e.user.id = :userId
+      AND e.status = com.money.finance_tracker.entity.TransactionStatus.POSTED
       AND e.type = :expenseType
       AND (
           :search = ''
@@ -182,6 +194,7 @@ public interface TransactionRepository extends
           FROM Transaction r
           WHERE r.reimbursementForTransaction = e
             AND r.user.id = :userId
+            AND r.status = com.money.finance_tracker.entity.TransactionStatus.POSTED
             AND r.type = :incomeType
             AND r.transactionNature = :reimbursementNature
       ), 0)
@@ -201,6 +214,7 @@ public interface TransactionRepository extends
     FROM Transaction r
     WHERE r.reimbursementForTransaction.id = :expenseId
       AND r.user.id = :userId
+      AND r.status = com.money.finance_tracker.entity.TransactionStatus.POSTED
       AND r.type = :incomeType
       AND r.transactionNature = :reimbursementNature
     """)
@@ -216,6 +230,7 @@ public interface TransactionRepository extends
     SELECT COALESCE(SUM(t.amount), 0)
     FROM Transaction t
     WHERE t.user.id = :userId
+      AND t.status = com.money.finance_tracker.entity.TransactionStatus.POSTED
       AND t.type = :type
       AND t.transactionNature = :transactionNature
     """)
@@ -230,6 +245,7 @@ public interface TransactionRepository extends
     SELECT COALESCE(SUM(t.amount), 0)
     FROM Transaction t
     WHERE t.user.id = :userId
+      AND t.status = com.money.finance_tracker.entity.TransactionStatus.POSTED
       AND t.type = :type
     """)
     BigDecimal getTotalByType(

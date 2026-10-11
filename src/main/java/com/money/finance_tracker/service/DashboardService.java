@@ -28,8 +28,10 @@ public class DashboardService {
 
     private final TransactionRepository transactionRepository;
     private final FundingSourceRepository fundingSourceRepository;
+    private final AccountLedgerService ledger;
 
     public DashboardResponseDto getOverview(User user, int year) {
+        ledger.reconcile(user.getId());
         Long userId = user.getId();
 
         // Only salary, sales, gifts, etc. Reimbursements are excluded.

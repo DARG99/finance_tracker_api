@@ -31,6 +31,10 @@ public final class TransactionSpecifications {
                     builder.equal(root.get("user").get("id"), userId)
             );
 
+            predicate = builder.and(predicate, builder.or(
+                    builder.equal(root.get("status"), com.money.finance_tracker.entity.TransactionStatus.POSTED),
+                    builder.isNull(root.get("subscription"))));
+
             if (type != null) {
                 predicate = builder.and(
                         predicate,

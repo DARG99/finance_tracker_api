@@ -15,6 +15,7 @@ import java.time.LocalDate;
 public class TransactionUpdateDto {
 
     @Positive(message = "Amount must be greater than zero")
+    @jakarta.validation.constraints.Digits(integer = 12, fraction = 2)
     private BigDecimal amount;
 
     private Long sourceFundingSourceId;

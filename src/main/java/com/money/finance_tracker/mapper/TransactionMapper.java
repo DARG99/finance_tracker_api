@@ -14,6 +14,7 @@ public class TransactionMapper {
         TransactionResponseDto response = new TransactionResponseDto();
 
         response.setId(transaction.getId());
+        response.setStatus(transaction.getStatus());
         response.setType(transaction.getType());
         response.setAmount(transaction.getAmount());
         response.setDescription(transaction.getDescription());

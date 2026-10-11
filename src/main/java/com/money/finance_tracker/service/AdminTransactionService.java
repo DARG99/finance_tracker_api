@@ -16,11 +16,13 @@ import java.util.List;
 public class AdminTransactionService {
 
     private final UserRepository userRepository;
+    private final AccountLedgerService ledger;
     private final TransactionRepository transactionRepository;
     private final FundingSourceRepository fundingSourceRepository;
 
     @Transactional
     public int deleteAllTransactionsForUser(Long userId) {
+        ledger.lock(userId);
         if (!userRepository.existsById(userId)) {
             throw new IllegalArgumentException("User not found");
         }

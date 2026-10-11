@@ -35,10 +35,14 @@ class TransactionServiceTest {
     void setUp() {
         repository = mock(TransactionRepository.class);
         fundingSources = mock(FundingSourceRepository.class);
+        AccountLedgerService ledger = mock(AccountLedgerService.class);
         service = new TransactionService(repository, fundingSources,
-                mock(CategoryRepository.class), new TransactionMapper());
+                mock(CategoryRepository.class), new TransactionMapper(), ledger,
+                new AccountClock(java.time.Clock.fixed(java.time.Instant.parse("2026-10-11T12:00:00Z"), java.time.ZoneOffset.UTC)),
+                mock(com.money.finance_tracker.repository.SubscriptionPaymentRepository.class));
         user = new User();
         user.setId(1L);
+        when(ledger.lock(1L)).thenReturn(user);
         account = new FundingSource();
         account.setBalance(new BigDecimal("425"));
         income = new Transaction();
@@ -92,6 +96,7 @@ class TransactionServiceTest {
         when(repository.save(any(Transaction.class))).thenAnswer(call -> call.getArgument(0));
         TransactionDto dto = new TransactionDto();
         dto.setType(INCOME);
+        dto.setTransactionDate(java.time.LocalDate.of(2026, 10, 11));
         dto.setTransactionNature(REIMBURSEMENT);
         dto.setAmount(new BigDecimal("250"));
         dto.setDestinationFundingSourceId(4L);

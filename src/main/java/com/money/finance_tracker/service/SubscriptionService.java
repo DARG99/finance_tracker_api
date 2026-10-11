@@ -21,12 +21,14 @@ public class SubscriptionService {
     private final CategoryRepository categoryRepository;
     private final SubscriptionMapper subscriptionMapper;
     private final SubscriptionPaymentRepository subscriptionPaymentRepository;
+    private final AccountLedgerService ledger;
 
     @Transactional
     public SubscriptionResponseDto createSubscription(
             SubscriptionDto dto,
             User user
     ) {
+        ledger.lock(user.getId());
         FundingSource fundingSource =
                 findFundingSource(dto.getFundingSourceId(), user);
 
@@ -51,13 +53,14 @@ public class SubscriptionService {
 
         subscription.setActive(true);
 
-        return subscriptionMapper.toResponseDto(
-                subscriptionRepository.save(subscription)
-        );
+        subscriptionRepository.save(subscription);
+        ledger.reconcile(user.getId());
+        return subscriptionMapper.toResponseDto(subscription);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<SubscriptionResponseDto> getSubscriptions(User user) {
+        ledger.reconcile(user.getId());
         return subscriptionRepository
                 .findAllByUserIdOrderByNextPaymentDateAsc(user.getId())
                 .stream()
@@ -71,8 +74,9 @@ public class SubscriptionService {
             SubscriptionUpdateDto dto,
             User user
     ) {
-        Subscription subscription =
-                findSubscription(subscriptionId, user);
+        ledger.lock(user.getId());
+        Subscription subscription = findSubscription(subscriptionId, user);
+        ledger.cancelGenerated(subscription);
 
         if (dto.getName() != null) {
             if (dto.getName().isBlank()) {
@@ -118,6 +122,7 @@ public class SubscriptionService {
             subscription.setActive(dto.getActive());
         }
 
+        ledger.reconcile(user.getId());
         return subscriptionMapper.toResponseDto(subscription);
     }
 
@@ -126,8 +131,9 @@ public class SubscriptionService {
             Long subscriptionId,
             User user
     ) {
+        ledger.lock(user.getId());
         Subscription subscription = findSubscription(subscriptionId, user);
-
+        ledger.cancelGenerated(subscription);
         subscription.setActive(false);
 
         return subscriptionMapper.toResponseDto(subscription);
@@ -167,6 +173,7 @@ public class SubscriptionService {
 
     @Transactional
     public void deleteSubscription(Long subscriptionId, User user) {
+        ledger.lock(user.getId());
         Subscription subscription = subscriptionRepository
                 .findByIdAndUserId(subscriptionId, user.getId())
                 .orElseThrow(() -> new ResponseStatusException(
@@ -174,6 +181,7 @@ public class SubscriptionService {
                         "Subscription not found"
                 ));
 
+        ledger.cancelGenerated(subscription);
         boolean hasPaymentHistory =
                 subscriptionPaymentRepository.existsBySubscriptionId(
                         subscriptionId

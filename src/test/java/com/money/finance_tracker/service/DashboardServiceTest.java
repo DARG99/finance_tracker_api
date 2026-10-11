@@ -28,7 +28,7 @@ class DashboardServiceTest {
     void includesStandaloneRefundInAMonthWithoutExpenses() {
         TransactionRepository transactions = mock(TransactionRepository.class);
         DashboardService service = new DashboardService(
-                transactions, mock(FundingSourceRepository.class));
+                transactions, mock(FundingSourceRepository.class), mock(AccountLedgerService.class));
         User user = new User();
         user.setId(1L);
         LocalDate start = LocalDate.of(2026, 1, 1);
@@ -60,7 +60,7 @@ class DashboardServiceTest {
     ) {
         TransactionRepository transactions = mock(TransactionRepository.class);
         DashboardService service = new DashboardService(
-                transactions, mock(FundingSourceRepository.class)
+                transactions, mock(FundingSourceRepository.class), mock(AccountLedgerService.class)
         );
         User user = new User();
         user.setId(1L);
@@ -106,7 +106,7 @@ class DashboardServiceTest {
     ) {
         TransactionRepository transactions = mock(TransactionRepository.class);
         FundingSourceRepository fundingSources = mock(FundingSourceRepository.class);
-        DashboardService service = new DashboardService(transactions, fundingSources);
+        DashboardService service = new DashboardService(transactions, fundingSources, mock(AccountLedgerService.class));
         User user = new User();
         user.setId(1L);
         LocalDate start = LocalDate.of(2025, 1, 1);

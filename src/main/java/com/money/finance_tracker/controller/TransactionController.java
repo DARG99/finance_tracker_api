@@ -84,6 +84,19 @@ public class TransactionController {
         );
     }
 
+    @PostMapping("/scheduled")
+    public ResponseEntity<TransactionResponseDto> schedule(
+            @Valid @RequestBody TransactionDto dto, @AuthenticationPrincipal User user) {
+        return ResponseEntity.status(201).body(transactionService.schedule(dto, user));
+    }
+
+    @PatchMapping("/{id}/schedule")
+    public ResponseEntity<TransactionResponseDto> patchSchedule(
+            @PathVariable Long id, @Valid @RequestBody TransactionUpdateDto dto,
+            @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(transactionService.patchSchedule(id, dto, user));
+    }
+
     @PatchMapping("/{id}")
     public ResponseEntity<TransactionResponseDto> patchTransaction(
             @PathVariable Long id,

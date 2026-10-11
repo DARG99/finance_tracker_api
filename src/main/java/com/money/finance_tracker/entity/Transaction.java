@@ -76,6 +76,18 @@ public class Transaction {
     @JsonIgnore
     private Transaction reimbursementForTransaction;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private TransactionStatus status = TransactionStatus.POSTED;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "subscription_id")
+    private Subscription subscription;
+
+    @Column(name = "occurrence_date")
+    private LocalDate occurrenceDate;
+
     // Automatically set by the backend
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

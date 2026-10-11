@@ -28,13 +28,37 @@ public class TransactionService {
     private final FundingSourceRepository fundingSourceRepository;
     private final CategoryRepository categoryRepository;
     private final TransactionMapper transactionMapper;
+    private final AccountLedgerService ledger;
+    private final AccountClock clock;
+    private final com.money.finance_tracker.repository.SubscriptionPaymentRepository payments;
 
-    @Transactional(readOnly = true)
+    @Transactional
+    public TransactionResponseDto schedule(TransactionDto dto, User user) {
+        if (dto.getType() != TransactionTypeEnum.EXPENSE)
+            throw new IllegalArgumentException("Only expenses can be scheduled");
+        return createTransaction(dto, user, true);
+    }
+
+    @Transactional
+    public TransactionResponseDto patchSchedule(Long id, TransactionUpdateDto dto, User user) {
+        ledger.lock(user.getId());
+        if (findTransaction(id, user).getType() != TransactionTypeEnum.EXPENSE)
+            throw new IllegalArgumentException("Only expenses can be scheduled");
+        return patchTransaction(id, dto, user);
+    }
+
+    private void conflict(String message) {
+        throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT, message);
+    }
+
+
+    @Transactional
     public Page<ReimbursableExpenseResponseDto> getReimbursableExpenses(
             User user,
             String search,
             Pageable pageable
     ) {
+        ledger.reconcile(user.getId());
         String normalizedSearch = search == null
                 ? ""
                 : search.trim();
@@ -67,7 +91,19 @@ public class TransactionService {
             TransactionDto dto,
             User user
     ) {
+        return createTransaction(dto, user, false);
+    }
+
+    private TransactionResponseDto createTransaction(TransactionDto dto, User user, boolean scheduledOnly) {
+        user = ledger.lock(user.getId());
+        if (dto.getTransactionDate() == null) throw new IllegalArgumentException("Transaction date is required");
+        boolean future = dto.getTransactionDate().isAfter(clock.today(user));
+        if (scheduledOnly && !future)
+            throw new IllegalArgumentException("Scheduled expenses must be dated after today in the account timezone");
+        if (future && dto.getType() != TransactionTypeEnum.EXPENSE)
+            throw new IllegalArgumentException("Only expenses can have a future date");
         Transaction transaction = new Transaction();
+        transaction.setStatus(future ? TransactionStatus.SCHEDULED : TransactionStatus.POSTED);
 
         transaction.setUser(user);
 
@@ -88,36 +124,6 @@ public class TransactionService {
     }
 
     @Transactional
-    public Transaction createExpenseFromSubscription(
-            Subscription subscription,
-            LocalDate paymentDate
-    ) {
-
-
-        Transaction transaction = new Transaction();
-
-        transaction.setUser(subscription.getUser());
-        transaction.setType(TransactionTypeEnum.EXPENSE);
-        transaction.setTransactionNature(TransactionNature.NORMAL);
-        transaction.setReimbursementForTransaction(null);
-        transaction.setAmount(subscription.getAmount());
-
-        transaction.setSourceFundingSource(
-                subscription.getFundingSource()
-        );
-
-        transaction.setDestinationFundingSource(null);
-        transaction.setCategory(subscription.getCategory());
-
-        transaction.setDescription(subscription.getName());
-        transaction.setTransactionDate(paymentDate);
-
-        subscription.getFundingSource()
-                .subtractFromBalance(subscription.getAmount());
-
-        return transactionRepository.save(transaction);
-    }
-
     public Page<TransactionResponseDto> getTransactions(
             User user,
             TransactionTypeEnum type,
@@ -129,6 +135,7 @@ public class TransactionService {
             TransactionNature transactionNature,
             Pageable pageable
     ) {
+        ledger.reconcile(user.getId());
         return transactionRepository.findAll(
                 TransactionSpecifications.filteredBy(
                         user.getId(),
@@ -143,11 +150,12 @@ public class TransactionService {
                 pageable
         ).map(transactionMapper::toResponseDto);
     }
-    @Transactional(readOnly = true)
+    @Transactional
     public TransactionResponseDto getTransactionById(
             Long transactionId,
             User user
     ) {
+        ledger.reconcile(user.getId());
         Transaction transaction = findTransaction(transactionId, user);
 
         return transactionMapper.toResponseDto(transaction);
@@ -156,10 +164,15 @@ public class TransactionService {
 
     @Transactional
     public void deleteTransaction(Long transactionId, User user) {
+        ledger.lock(user.getId());
         Transaction transaction = findTransaction(transactionId, user);
 
+        if (transaction.getSubscription() != null && transaction.getStatus() == TransactionStatus.SCHEDULED)
+            conflict("Manage this upcoming payment through its subscription");
+        if (transactionRepository.existsByReimbursementForTransactionId(transactionId))
+            conflict("Remove linked reimbursements before deleting this expense");
+        payments.findByTransactionId(transactionId).ifPresent(payment -> payment.setTransaction(null));
         reverseTransactionEffect(transaction);
-
         transactionRepository.delete(transaction);
     }
 
@@ -178,7 +191,7 @@ public class TransactionService {
 
         Category category = findCategory(dto.getCategoryId(), user);
 
-        source.subtractFromBalance(dto.getAmount());
+        if (transaction.getStatus() == TransactionStatus.POSTED) source.setBalance(source.getBalance().subtract(dto.getAmount()));
 
         transaction.setSourceFundingSource(source);
         transaction.setCategory(category);
@@ -226,9 +239,9 @@ public class TransactionService {
             }
 
 
-            if (originalExpense.getType() != TransactionTypeEnum.EXPENSE) {
+            if (originalExpense.getType() != TransactionTypeEnum.EXPENSE || originalExpense.getStatus() != TransactionStatus.POSTED) {
                 throw new IllegalArgumentException(
-                        "A reimbursement can only reference an expense"
+                        "A reimbursement can only reference a posted expense"
                 );
             }
 
@@ -264,6 +277,7 @@ public class TransactionService {
     }
 
     private void reverseTransactionEffect(Transaction transaction) {
+        if (transaction.getStatus() != TransactionStatus.POSTED) return;
         switch (transaction.getType()) {
             case EXPENSE -> transaction.getSourceFundingSource()
                     .addToBalance(transaction.getAmount());
@@ -314,7 +328,13 @@ public class TransactionService {
             TransactionUpdateDto dto,
             User user
     ) {
+        user = ledger.lock(user.getId());
         Transaction transaction = findTransaction(id, user);
+        if (transaction.getSubscription() != null)
+            conflict("Edit this payment through subscription management");
+        if (dto.getTransactionDate() != null && dto.getTransactionDate().isAfter(clock.today(user))
+                && transaction.getType() != TransactionTypeEnum.EXPENSE)
+            throw new IllegalArgumentException("Only expenses can have a future date");
 
         if (transaction.getType() != TransactionTypeEnum.INCOME
                 && (dto.getTransactionNature() != null
@@ -351,27 +371,24 @@ public class TransactionService {
             newCategory = findCategory(dto.getCategoryId(), user);
         }
 
-        boolean balanceChanged =
-                dto.getAmount() != null || newSource != null;
-
-        if (balanceChanged) {
-            reverseTransactionEffect(transaction);
+        if (dto.getDestinationFundingSourceId() != null)
+            throw new IllegalArgumentException("Expenses can only use a source funding source");
+        LocalDate date = dto.getTransactionDate() == null ? transaction.getTransactionDate() : dto.getTransactionDate();
+        boolean future = date.isAfter(clock.today(user));
+        if (transactionRepository.existsByReimbursementForTransactionId(transaction.getId())) {
+            if (future) conflict("Remove linked reimbursements before scheduling this expense");
+            BigDecimal reimbursed = transactionRepository.getReimbursedAmountForExpense(
+                    transaction.getId(), user.getId(), TransactionTypeEnum.INCOME, TransactionNature.REIMBURSEMENT);
+            if (dto.getAmount() != null && dto.getAmount().compareTo(reimbursed) < 0)
+                conflict("Expense amount cannot be less than its reimbursements");
         }
-
+        reverseTransactionEffect(transaction);
         patchCommonFields(transaction, dto);
-
-        if (newSource != null) {
-            transaction.setSourceFundingSource(newSource);
-        }
-
-        if (newCategory != null) {
-            transaction.setCategory(newCategory);
-        }
-
-        if (balanceChanged) {
-            transaction.getSourceFundingSource()
-                    .subtractFromBalance(transaction.getAmount());
-        }
+        if (newSource != null) transaction.setSourceFundingSource(newSource);
+        if (newCategory != null) transaction.setCategory(newCategory);
+        transaction.setStatus(future ? TransactionStatus.SCHEDULED : TransactionStatus.POSTED);
+        if (!future) transaction.getSourceFundingSource().setBalance(
+                transaction.getSourceFundingSource().getBalance().subtract(transaction.getAmount()));
     }
 
     private void patchIncome(
@@ -409,9 +426,9 @@ public class TransactionService {
         }
 
         if (originalExpense != null) {
-            if (originalExpense.getType() != TransactionTypeEnum.EXPENSE) {
+            if (originalExpense.getType() != TransactionTypeEnum.EXPENSE || originalExpense.getStatus() != TransactionStatus.POSTED) {
                 throw new IllegalArgumentException(
-                        "A reimbursement can only reference an expense"
+                        "A reimbursement can only reference a posted expense"
                 );
             }
 

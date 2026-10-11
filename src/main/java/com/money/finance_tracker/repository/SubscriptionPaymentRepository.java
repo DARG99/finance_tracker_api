@@ -14,4 +14,5 @@ public interface SubscriptionPaymentRepository
     );
 
     boolean existsBySubscriptionId(Long subscriptionId);
+    java.util.Optional<SubscriptionPayment> findByTransactionId(Long transactionId);
 }

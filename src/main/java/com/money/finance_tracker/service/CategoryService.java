@@ -3,7 +3,6 @@ package com.money.finance_tracker.service;
 import com.money.finance_tracker.dto.CategoryDto;
 import com.money.finance_tracker.dto.CategoryResponseDto;
 import com.money.finance_tracker.entity.Category;
-import com.money.finance_tracker.entity.FundingSource;
 import com.money.finance_tracker.entity.User;
 import com.money.finance_tracker.repository.CategoryRepository;
 import com.money.finance_tracker.repository.TransactionRepository;
@@ -45,6 +44,27 @@ public class CategoryService {
                         category.getName()
                 ))
                 .toList();
+    }
+
+    @Transactional
+    public CategoryResponseDto renameCategory(Long categoryId, CategoryDto dto, User user) {
+        Category category = categoryRepository
+                .findByIdAndUserId(categoryId, user.getId())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Category not found"
+                ));
+
+        String name = dto.getName().strip();
+        if (name.isBlank() || name.length() > 100) {
+            throw new IllegalArgumentException("Category name must contain between 1 and 100 characters");
+        }
+        if (categoryRepository.existsByUserIdAndNameAndIdNot(user.getId(), name, categoryId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "A category with this name already exists");
+        }
+
+        category.setName(name);
+        categoryRepository.saveAndFlush(category);
+        return new CategoryResponseDto(category.getId(), category.getName());
     }
 
     @Transactional

@@ -1,50 +1,24 @@
 package com.money.finance_tracker.service;
 
-import com.money.finance_tracker.repository.SubscriptionRepository;
+import com.money.finance_tracker.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.util.List;
-
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class SubscriptionScheduler {
+    private final UserRepository users;
+    private final AccountLedgerService ledger;
 
-    private static final ZoneId PORTUGAL_ZONE =
-            ZoneId.of("Europe/Lisbon");
-
-    private final SubscriptionRepository subscriptionRepository;
-    private final SubscriptionChargeService subscriptionChargeService;
-
-    @Scheduled(
-            cron = "0 5 0 * * *",
-            zone = "Europe/Lisbon"
-    )
+    // Runs after startup and retries missed dates; each account commits independently.
+    @Scheduled(fixedDelayString = "${finance.posting-delay-ms:60000}")
     public void processDueSubscriptions() {
-        LocalDate today = LocalDate.now(PORTUGAL_ZONE);
-
-        List<Long> dueSubscriptionIds =
-                subscriptionRepository.findDueSubscriptionIds(today);
-
-        for (Long subscriptionId : dueSubscriptionIds) {
-            try {
-                // Each subscription has its own database transaction.
-                subscriptionChargeService.chargeIfDue(
-                        subscriptionId,
-                        today
-                );
-            } catch (RuntimeException exception) {
-                log.error(
-                        "Could not charge subscription {}",
-                        subscriptionId,
-                        exception
-                );
-            }
+        for (Long id : users.findAccountIds()) {
+            try { ledger.reconcile(id); }
+            catch (RuntimeException error) { log.error("Could not reconcile account {}", id, error); }
         }
     }
 }

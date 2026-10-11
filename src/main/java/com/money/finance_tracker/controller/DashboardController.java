@@ -17,6 +17,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class DashboardController {
 
     private final DashboardService dashboardService;
+    private final com.money.finance_tracker.service.ForecastService forecastService;
+
+    @GetMapping("/forecast")
+    public com.money.finance_tracker.dto.ForecastResponseDto forecast(
+            @RequestParam(defaultValue = "NEXT_MONTH") com.money.finance_tracker.service.ForecastService.Horizon horizon,
+            @AuthenticationPrincipal User user) {
+        return forecastService.forecast(user, horizon);
+    }
+
 
     @GetMapping("/overview")
     public ResponseEntity<DashboardResponseDto> getOverview(

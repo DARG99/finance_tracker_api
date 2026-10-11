@@ -37,6 +37,35 @@ public class GlobalExceptionHandler {
 //        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
 //    }
 
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ProblemDetail status(org.springframework.web.server.ResponseStatusException error) {
+        return ProblemDetail.forStatusAndDetail(error.getStatusCode(), error.getReason());
+    }
+
+    @ExceptionHandler(jakarta.persistence.EntityNotFoundException.class)
+    public ProblemDetail missing(jakarta.persistence.EntityNotFoundException error) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), error.getMessage());
+    }
+
+    @ExceptionHandler({IllegalArgumentException.class, org.springframework.http.converter.HttpMessageNotReadableException.class,
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class})
+    public ProblemDetail invalid(Exception error) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), "Invalid request: " + error.getMessage());
+    }
+
+    @ExceptionHandler(org.springframework.web.bind.MethodArgumentNotValidException.class)
+    public ProblemDetail validation(org.springframework.web.bind.MethodArgumentNotValidException error) {
+        String details = error.getBindingResult().getAllErrors().stream()
+                .map(org.springframework.context.support.DefaultMessageSourceResolvable::getDefaultMessage)
+                .collect(java.util.stream.Collectors.joining("; "));
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), details);
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ProblemDetail dependency(org.springframework.dao.DataIntegrityViolationException error) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), "The record has dependencies or conflicts with an existing occurrence");
+    }
+
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleSecurityException(Exception exception) {
         ProblemDetail errorDetail = null;

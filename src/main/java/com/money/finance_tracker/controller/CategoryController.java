@@ -2,7 +2,6 @@ package com.money.finance_tracker.controller;
 
 import com.money.finance_tracker.dto.CategoryDto;
 import com.money.finance_tracker.dto.CategoryResponseDto;
-import com.money.finance_tracker.dto.FundingSourceDto;
 import com.money.finance_tracker.entity.User;
 import com.money.finance_tracker.service.CategoryService;
 import jakarta.validation.Valid;
@@ -39,6 +38,15 @@ public class CategoryController {
         return ResponseEntity.ok(
                 categoryService.getCategories(user)
         );
+    }
+
+    @PatchMapping("/{id}")
+    public ResponseEntity<CategoryResponseDto> renameCategory(
+            @PathVariable Long id,
+            @Valid @RequestBody CategoryDto dto,
+            @AuthenticationPrincipal User user
+    ) {
+        return ResponseEntity.ok(categoryService.renameCategory(id, dto, user));
     }
 
     @DeleteMapping("/{id}")
