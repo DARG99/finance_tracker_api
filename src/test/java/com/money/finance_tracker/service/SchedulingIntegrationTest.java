@@ -303,6 +303,71 @@ class SchedulingIntegrationTest {
         } finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
     }
 
+    @Test void monthlyCategoryOverviewUsesPostedExpenseDatesAndReconcilesWithAnnualTotals() {
+        tx(() -> { users.findById(user.getId()).orElseThrow().setTimezone("America/Los_Angeles"); return null; });
+        clock.instant = Instant.parse("2027-01-01T01:00:00Z"); // Still December 31 in the account.
+        var december = service.addTransaction(expense("2026-12-31", "100.25"), user);
+        service.addTransaction(expense("2026-01-01", "20.10"), user);
+        service.addTransaction(expense("2025-12-31", "9.99"), user);
+        service.schedule(expense("2027-01-01", "500"), user);
+        service.schedule(expense("2027-02-01", "700"), user);
+        Long secondCategory = tx(() -> {
+            Category c = new Category(); c.setName("Travel"); c.setUser(user); return categories.save(c).getId();
+        });
+        var travel = expense("2026-02-01", "30.50"); travel.setCategoryId(secondCategory);
+        service.addTransaction(travel, user);
+        subscription("2026-12-31", SubscriptionFrequency.MONTHLY, "5.50");
+        var futureSubscription = subscription("2027-02-01", SubscriptionFrequency.MONTHLY, "80");
+        generated(futureSubscription.getId(), "2027-02-01", "80");
+        TransactionDto receipt = new TransactionDto(); receipt.setType(TransactionTypeEnum.INCOME);
+        receipt.setAmount(new BigDecimal("15.25")); receipt.setDestinationFundingSourceId(sourceId);
+        receipt.setTransactionDate(LocalDate.parse("2026-12-31"));
+        receipt.setTransactionNature(TransactionNature.REIMBURSEMENT);
+        receipt.setReimbursementForTransactionId(december.getId());
+        var refund = service.addTransaction(receipt, user);
+        // Cross-year receipt still offsets the original December expense.
+        tx(() -> { transactions.findById(refund.getId()).orElseThrow().setTransactionDate(LocalDate.parse("2027-01-02")); return null; });
+        receipt.setReimbursementForTransactionId(null); receipt.setAmount(new BigDecimal("2"));
+        service.addTransaction(receipt, user); // Standalone refunds do not affect categories.
+        receipt.setTransactionNature(TransactionNature.NORMAL);
+        service.addTransaction(receipt, user);
+        User other = tx(() -> {
+            User u = new User(); u.setName("Other"); u.setEmail(UUID.randomUUID()+"@test.invalid"); u.setPasswordHash("test");
+            return users.save(u);
+        });
+        try {
+            tx(() -> {
+                Transaction t = new Transaction(); t.setUser(other); t.setType(TransactionTypeEnum.EXPENSE);
+                t.setAmount(new BigDecimal("999")); t.setTransactionDate(LocalDate.parse("2026-01-01"));
+                t.setSourceFundingSource(sources.findById(sourceId).orElseThrow());
+                t.setCategory(categories.findById(categoryId).orElseThrow()); transactions.save(t);
+                FundingSource destination = new FundingSource(); destination.setUser(user); destination.setName("Savings");
+                destination.setBalance(BigDecimal.ZERO); destination.setInitialBalance(BigDecimal.ZERO); sources.save(destination);
+                Transaction transfer = new Transaction(); transfer.setUser(user); transfer.setType(TransactionTypeEnum.TRANSFER);
+                transfer.setSourceFundingSource(sources.findById(sourceId).orElseThrow()); transfer.setDestinationFundingSource(destination);
+                transfer.setAmount(new BigDecimal("40"));
+                transfer.setTransactionDate(LocalDate.parse("2026-01-01")); transactions.save(transfer);
+                return null;
+            });
+            var overview = dashboard.getOverview(user, 2026);
+            var rows = overview.getMonthlySpendingByCategory();
+            assertEquals(3, rows.size());
+            assertEquals(List.of(1, 2, 12), rows.stream().map(MonthlyCategorySpendingDto::getMonth).toList());
+            money("20.10", rows.get(0).getAmount()); money("30.50", rows.get(1).getAmount()); money("90.50", rows.get(2).getAmount());
+            overview.getSpendingByCategory().forEach(category -> money(category.getAmount().toPlainString(),
+                    rows.stream().filter(row -> row.getCategoryId().equals(category.getCategoryId()))
+                            .map(MonthlyCategorySpendingDto::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add)));
+            assertTrue(dashboard.getOverview(user, 2024).getMonthlySpendingByCategory().isEmpty());
+            assertTrue(dashboard.getOverview(user, 9999).getMonthlySpendingByCategory().isEmpty());
+            assertTrue(dashboard.getOverview(user, 2027).getMonthlySpendingByCategory().isEmpty());
+            money("9.99", dashboard.getOverview(user, 2025).getMonthlySpendingByCategory().getFirst().getAmount());
+            clock.instant = Instant.parse("2027-01-01T09:00:00Z");
+            money("500", dashboard.getOverview(user, 2027).getMonthlySpendingByCategory().getFirst().getAmount());
+        } finally {
+            tx(() -> { transactions.deleteAllByUserId(other.getId()); users.deleteById(other.getId()); return null; });
+        }
+    }
+
     void race(Runnable a, Runnable b) throws Exception {
         CountDownLatch start = new CountDownLatch(1);
         try (var executor = Executors.newFixedThreadPool(2)) {

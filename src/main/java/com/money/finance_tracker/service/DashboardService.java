@@ -4,6 +4,7 @@ import com.money.finance_tracker.dto.CategorySpendingDto;
 import com.money.finance_tracker.dto.DashboardResponseDto;
 import com.money.finance_tracker.dto.FundingSourceResponseDto;
 import com.money.finance_tracker.dto.MonthlySpendingDto;
+import com.money.finance_tracker.dto.MonthlyCategorySpendingDto;
 import com.money.finance_tracker.entity.FundingSource;
 import com.money.finance_tracker.entity.TransactionNature;
 import com.money.finance_tracker.entity.TransactionTypeEnum;
@@ -31,6 +32,9 @@ public class DashboardService {
     private final AccountLedgerService ledger;
 
     public DashboardResponseDto getOverview(User user, int year) {
+        if (year < 1 || year > 9999) {
+            throw new IllegalArgumentException("Year must be between 1 and 9999");
+        }
         ledger.reconcile(user.getId());
         Long userId = user.getId();
 
@@ -62,6 +66,7 @@ public class DashboardService {
                 fundingSourceRepository.sumBalancesByUserId(userId);
 
         LocalDate startDate = LocalDate.of(year, 1, 1);
+        // LocalDate and PostgreSQL DATE support year 10000 as the exclusive bound.
         LocalDate endDate = startDate.plusYears(1);
 
         Map<Integer, BigDecimal> monthlyReimbursements = transactionRepository
@@ -115,6 +120,26 @@ public class DashboardService {
                 )).sorted(Comparator.comparing(CategorySpendingDto::getAmount).reversed())
                         .toList();
 
+        // Linked refunds belong to the original expense's month and category.
+        // TransactionService prevents refunds exceeding the original expense amount.
+        Map<CategoryMonth, BigDecimal> monthlyCategoryReimbursements = transactionRepository
+                .getMonthlyReimbursementsByExpenseCategory(
+                        userId, TransactionTypeEnum.INCOME, TransactionNature.REIMBURSEMENT,
+                        TransactionTypeEnum.EXPENSE, startDate, endDate
+                ).stream().collect(Collectors.toMap(
+                        row -> new CategoryMonth(row.getMonth(), row.getCategoryId()),
+                        MonthlyCategorySpendingDto::getAmount
+                ));
+        List<MonthlyCategorySpendingDto> monthlySpendingByCategory = transactionRepository
+                .getMonthlySpendingByCategory(userId, TransactionTypeEnum.EXPENSE, startDate, endDate)
+                .stream().map(row -> new MonthlyCategorySpendingDto(
+                        row.getMonth(), row.getCategoryId(), row.getCategoryName(),
+                        row.getAmount().subtract(monthlyCategoryReimbursements.getOrDefault(
+                                new CategoryMonth(row.getMonth(), row.getCategoryId()), BigDecimal.ZERO))
+                )).sorted(Comparator.comparing(MonthlyCategorySpendingDto::getMonth)
+                        .thenComparing(MonthlyCategorySpendingDto::getCategoryId))
+                .toList();
+
         List<FundingSourceResponseDto> fundingSources =
                 fundingSourceRepository.findAllByUserIdOrderByNameAsc(userId)
                         .stream()
@@ -128,9 +153,12 @@ public class DashboardService {
                 currentTrackedMoney,
                 fundingSources,
                 monthlySpending,
-                spendingByCategory
+                spendingByCategory,
+                monthlySpendingByCategory
         );
     }
+
+    private record CategoryMonth(Integer month, Long categoryId) {}
 
     private FundingSourceResponseDto toFundingSourceDto(
             FundingSource fundingSource

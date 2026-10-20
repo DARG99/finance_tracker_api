@@ -2,6 +2,7 @@ package com.money.finance_tracker.repository;
 
 import com.money.finance_tracker.dto.CategorySpendingDto;
 import com.money.finance_tracker.dto.MonthlySpendingDto;
+import com.money.finance_tracker.dto.MonthlyCategorySpendingDto;
 import com.money.finance_tracker.entity.Transaction;
 import com.money.finance_tracker.entity.TransactionNature;
 import com.money.finance_tracker.entity.TransactionTypeEnum;
@@ -138,6 +139,61 @@ public interface TransactionRepository extends
     GROUP BY c.id, c.name
     """)
     List<CategorySpendingDto> getReimbursementsByExpenseCategory(
+            @Param("userId") Long userId,
+            @Param("incomeType") TransactionTypeEnum incomeType,
+            @Param("reimbursementNature") TransactionNature reimbursementNature,
+            @Param("expenseType") TransactionTypeEnum expenseType,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
+
+    @Query("""
+    SELECT new com.money.finance_tracker.dto.MonthlyCategorySpendingDto(
+        MONTH(t.transactionDate),
+        c.id,
+        c.name,
+        SUM(t.amount)
+    )
+    FROM Transaction t
+    JOIN t.category c
+    WHERE t.user.id = :userId
+      AND t.status = com.money.finance_tracker.entity.TransactionStatus.POSTED
+      AND t.type = :type
+      AND t.transactionDate >= :startDate
+      AND t.transactionDate < :endDate
+    GROUP BY MONTH(t.transactionDate), c.id, c.name
+    ORDER BY SUM(t.amount) DESC
+    """)
+    List<MonthlyCategorySpendingDto> getMonthlySpendingByCategory(
+            @Param("userId") Long userId,
+            @Param("type") TransactionTypeEnum type,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
+
+    // Use the original expense's category and month, regardless of refund date.
+    @Query("""
+    SELECT new com.money.finance_tracker.dto.MonthlyCategorySpendingDto(
+        MONTH(e.transactionDate),
+        c.id,
+        c.name,
+        SUM(r.amount)
+    )
+    FROM Transaction r
+    JOIN r.reimbursementForTransaction e
+    JOIN e.category c
+    WHERE r.user.id = :userId
+      AND e.user.id = :userId
+      AND r.status = com.money.finance_tracker.entity.TransactionStatus.POSTED
+      AND r.type = :incomeType
+      AND r.transactionNature = :reimbursementNature
+      AND e.status = com.money.finance_tracker.entity.TransactionStatus.POSTED
+      AND e.type = :expenseType
+      AND e.transactionDate >= :startDate
+      AND e.transactionDate < :endDate
+    GROUP BY MONTH(e.transactionDate), c.id, c.name
+    """)
+    List<MonthlyCategorySpendingDto> getMonthlyReimbursementsByExpenseCategory(
             @Param("userId") Long userId,
             @Param("incomeType") TransactionTypeEnum incomeType,
             @Param("reimbursementNature") TransactionNature reimbursementNature,

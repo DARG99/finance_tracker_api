@@ -3,6 +3,7 @@ package com.money.finance_tracker.service;
 import com.money.finance_tracker.dto.DashboardResponseDto;
 import com.money.finance_tracker.dto.CategorySpendingDto;
 import com.money.finance_tracker.dto.MonthlySpendingDto;
+import com.money.finance_tracker.dto.MonthlyCategorySpendingDto;
 import com.money.finance_tracker.entity.User;
 import com.money.finance_tracker.repository.FundingSourceRepository;
 import com.money.finance_tracker.repository.TransactionRepository;
@@ -23,6 +24,51 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class DashboardServiceTest {
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {0, -1, 10000, Integer.MAX_VALUE})
+    void rejectsInvalidYearBeforeReconciliation(int year) {
+        TransactionRepository transactions = mock(TransactionRepository.class);
+        AccountLedgerService ledger = mock(AccountLedgerService.class);
+        DashboardService service = new DashboardService(transactions, mock(FundingSourceRepository.class), ledger);
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> service.getOverview(new User(), year));
+        org.mockito.Mockito.verifyNoInteractions(transactions, ledger);
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {1, 2026, 9999})
+    void monthlyCategoriesReconcileAcrossMonthsAndUseExclusiveYearBound(int year) {
+        TransactionRepository transactions = mock(TransactionRepository.class);
+        DashboardService service = new DashboardService(
+                transactions, mock(FundingSourceRepository.class), mock(AccountLedgerService.class));
+        User user = new User(); user.setId(1L);
+        LocalDate start = LocalDate.of(year, 1, 1), end = LocalDate.of(year + 1, 1, 1);
+        when(transactions.getTotalByTypeAndNature(1L, INCOME, NORMAL)).thenReturn(BigDecimal.ZERO);
+        when(transactions.sumAmountByUserAndType(1L, EXPENSE)).thenReturn(new BigDecimal("40.30"));
+        when(transactions.getTotalByTypeAndNature(1L, INCOME, REIMBURSEMENT)).thenReturn(new BigDecimal("10.10"));
+        when(transactions.getMonthlySpendingByCategory(1L, EXPENSE, start, end)).thenReturn(List.of(
+                new MonthlyCategorySpendingDto(12, 10L, "Food", new BigDecimal("20.20")),
+                new MonthlyCategorySpendingDto(1, 20L, "Travel", new BigDecimal("10.00")),
+                new MonthlyCategorySpendingDto(1, 10L, "Food", new BigDecimal("10.10"))));
+        when(transactions.getMonthlyReimbursementsByExpenseCategory(1L, INCOME, REIMBURSEMENT, EXPENSE, start, end))
+                .thenReturn(List.of(new MonthlyCategorySpendingDto(1, 10L, "Food", new BigDecimal("10.10"))));
+        when(transactions.getSpendingByCategory(1L, EXPENSE, start, end)).thenReturn(List.of(
+                new CategorySpendingDto(10L, "Food", new BigDecimal("30.30")),
+                new CategorySpendingDto(20L, "Travel", new BigDecimal("10.00"))));
+        when(transactions.getReimbursementsByExpenseCategory(1L, INCOME, REIMBURSEMENT, EXPENSE, start, end))
+                .thenReturn(List.of(new CategorySpendingDto(10L, "Food", new BigDecimal("10.10"))));
+        var overview = service.getOverview(user, year);
+        assertEquals(List.of(
+                new MonthlyCategorySpendingDto(1, 10L, "Food", new BigDecimal("0.00")),
+                new MonthlyCategorySpendingDto(1, 20L, "Travel", new BigDecimal("10.00")),
+                new MonthlyCategorySpendingDto(12, 10L, "Food", new BigDecimal("20.20"))),
+                overview.getMonthlySpendingByCategory());
+        overview.getSpendingByCategory().forEach(category -> assertEquals(category.getAmount(),
+                overview.getMonthlySpendingByCategory().stream()
+                        .filter(row -> row.getCategoryId().equals(category.getCategoryId()))
+                        .map(MonthlyCategorySpendingDto::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add)));
+    }
 
     @Test
     void includesStandaloneRefundInAMonthWithoutExpenses() {
@@ -51,6 +97,7 @@ class DashboardServiceTest {
         assertEquals(List.of(new MonthlySpendingDto(1, new BigDecimal("100")),
                 new MonthlySpendingDto(2, new BigDecimal("-25"))), overview.getMonthlySpending());
         assertEquals(List.of(), overview.getSpendingByCategory());
+        assertEquals(List.of(), overview.getMonthlySpendingByCategory());
     }
 
     @ParameterizedTest

@@ -18,4 +18,5 @@ public class DashboardResponseDto {
     private List<FundingSourceResponseDto> fundingSources;
     private List<MonthlySpendingDto> monthlySpending;
     private List<CategorySpendingDto> spendingByCategory;
+    private List<MonthlyCategorySpendingDto> monthlySpendingByCategory;
 }
