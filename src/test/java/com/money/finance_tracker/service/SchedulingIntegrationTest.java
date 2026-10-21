@@ -368,6 +368,59 @@ class SchedulingIntegrationTest {
         }
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "2026-02-01,2026-02-28", "2024-02-01,2024-02-29",
+            "2025-12-01,2025-12-31", "2025-01-01,2025-12-31"})
+    void categoryLinksFilterBeforePaginationWithInclusiveDates(String first, String last) {
+        LocalDate from = LocalDate.parse(first), to = LocalDate.parse(last);
+        var start = service.addTransaction(expense(first, "10"), user);
+        var end = service.addTransaction(expense(last, "20"), user);
+        service.addTransaction(expense(from.minusDays(1).toString(), "30"), user);
+        service.addTransaction(expense(to.plusDays(1).toString(), "40"), user);
+        Long otherCategory = tx(() -> {
+            Category c = new Category(); c.setUser(user); c.setName("Other"); return categories.save(c).getId();
+        });
+        var otherExpense = expense(first, "50"); otherExpense.setCategoryId(otherCategory);
+        service.addTransaction(otherExpense, user);
+        var page = service.getTransactions(user, null, categoryId, null, null, from, to, null,
+                PageRequest.of(0, 1));
+        assertEquals(2, page.getTotalElements()); assertEquals(2, page.getTotalPages());
+        assertTrue(page.isFirst()); assertFalse(page.isLast());
+        assertEquals(end.getId(), page.getContent().getFirst().getId());
+        var next = service.getTransactions(user, null, categoryId, null, null, from, to, null,
+                PageRequest.of(1, 1));
+        assertEquals(2, next.getTotalElements()); assertTrue(next.isLast());
+        assertEquals(start.getId(), next.getContent().getFirst().getId());
+        User other = tx(() -> {
+            User u = new User(); u.setName("Other"); u.setEmail(UUID.randomUUID()+"@test.invalid");
+            u.setPasswordHash("test"); return users.save(u);
+        });
+        try {
+            assertTrue(service.getTransactions(other, null, categoryId, null, null, from, to, null,
+                    PageRequest.of(0, 50)).isEmpty());
+        } finally { users.deleteById(other.getId()); }
+        assertTrue(service.getTransactions(user, null, categoryId, null, null,
+                LocalDate.of(9999, 12, 31), LocalDate.of(9999, 12, 31), null,
+                PageRequest.of(0, 50)).isEmpty());
+    }
+
+    @Test void categoryLinkHttpValidation() throws Exception {
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup(webContext).build();
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(user, null, List.of()));
+        try {
+            for (String query : List.of("categoryId=0", "categoryId=-1", "categoryId=abc",
+                    "from=2026-02-30", "to=not-a-date", "from=2026-03-01&to=2026-02-28")) {
+                mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/transactions?" + query))
+                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest());
+            }
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+                    "/api/transactions?categoryId=" + categoryId + "&from=2026-02-01&to=2026-02-28"))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+        } finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
+    }
+
     void race(Runnable a, Runnable b) throws Exception {
         CountDownLatch start = new CountDownLatch(1);
         try (var executor = Executors.newFixedThreadPool(2)) {

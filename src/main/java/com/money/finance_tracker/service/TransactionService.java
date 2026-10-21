@@ -14,6 +14,8 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -135,6 +137,20 @@ public class TransactionService {
             TransactionNature transactionNature,
             Pageable pageable
     ) {
+        if (categoryId != null && categoryId <= 0) {
+            throw new IllegalArgumentException("Category ID must be positive");
+        }
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new IllegalArgumentException("From date must not be after to date");
+        }
+        // Preserve requested sorting while making tied rows stable across pages.
+        Sort sort = pageable.getSort();
+        if (sort.getOrderFor("id") == null) {
+            sort = sort.and(Sort.by(Sort.Direction.DESC, "id"));
+        }
+        Pageable stablePageable = pageable.isPaged()
+                ? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort)
+                : Pageable.unpaged(sort);
         ledger.reconcile(user.getId());
         return transactionRepository.findAll(
                 TransactionSpecifications.filteredBy(
@@ -147,7 +163,7 @@ public class TransactionService {
                         to,
                         transactionNature
                 ),
-                pageable
+                stablePageable
         ).map(transactionMapper::toResponseDto);
     }
     @Transactional

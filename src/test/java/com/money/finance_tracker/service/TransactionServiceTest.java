@@ -31,6 +31,33 @@ class TransactionServiceTest {
     private Transaction expense;
     private FundingSource account;
 
+    @Test
+    void rejectsInvalidCategoryAndReversedDates() {
+        var page = org.springframework.data.domain.PageRequest.of(0, 50);
+        for (long id : new long[]{0, -1}) {
+            assertThrows(IllegalArgumentException.class, () -> service.getTransactions(
+                    user, null, id, null, null, null, null, null, page));
+        }
+        assertThrows(IllegalArgumentException.class, () -> service.getTransactions(
+                user, null, 1L, null, null, java.time.LocalDate.of(2026, 3, 1),
+                java.time.LocalDate.of(2026, 2, 28), null, page));
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    void preservesRequestedSortAndAddsUniqueTieBreaker() {
+        var sort = org.springframework.data.domain.Sort.by("transactionDate", "createdAt");
+        var page = org.springframework.data.domain.PageRequest.of(2, 20, sort);
+        when(repository.findAll(any(org.springframework.data.jpa.domain.Specification.class),
+                any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(org.springframework.data.domain.Page.empty());
+        service.getTransactions(user, null, 1L, null, null, null, null, null, page);
+        verify(repository).findAll(any(org.springframework.data.jpa.domain.Specification.class),
+                eq(org.springframework.data.domain.PageRequest.of(2, 20,
+                        sort.and(org.springframework.data.domain.Sort.by(
+                                org.springframework.data.domain.Sort.Direction.DESC, "id")))));
+    }
+
     @BeforeEach
     void setUp() {
         repository = mock(TransactionRepository.class);
